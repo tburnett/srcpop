@@ -230,16 +230,43 @@ def show_unique(sclass):
         )
      )
 
-def sedplotgrid(df, nrows=5,ncols=5, figsize=(8,8), **kwargs):
+class SEDplotter:
+    """ Manage SED plots showing both UW and 4FGL-DR4 
+
+    """
+    def __init__(self):
+        """ set up the catalogs that have specfunc columns"""
+        from utilities.catalogs import UWcat, Fermi4FGL
+        self.uw = UWcat('uw1410')
+        self.uw.index = self.uw.jname  # make it indexsed by the uw jname
+        self.uw.index.name = 'UW jname'
+        self.fcat = Fermi4FGL()
+        self.plot_kw=[dict(lw=4,color='blue', alpha=0.5),dict(color='red')]
+        
+    def funcs(self, src):
+        """ src is a Series object with index the 4FGL name, a "uw_name" entry
+        return the spectral functions"""
+        return self.uw.loc[src.uw_name,'specfunc'], self.fcat.loc[src.name,'specfunc']
+        
+    def plots(self, src, ax=None, **kwargs):
+        fig, ax = plt.subplots(figsize=(2,2)) if ax is None else  (ax.figure, ax)
+        kw = dict(xlabel='', ylabel=''); kw.update(kwargs)
+
+        for f, pkw in zip(self.funcs(src), self.plot_kw):
+            f.sed_plot(ax, plot_kw=pkw)
+        ax.set(**kw)
+
+
+
+def sedplotgrid(df, nrows=5,ncols=5, figsize=(,8), **kwargs):
     
     def fmt_info(info, sep='\n  '):
         with pd.option_context('display.precision', 3):
             t = str(info).split('\n')[:-1]
         return info.name +sep+ sep.join(t)
     
-    # need to use uw_name to lookup the specfun
-    sfl = SpecFunLookup(df) 
-    specfun = pd.Series(dict([ (idx,sfl[idx]) for idx in df.index]))
+    with capture_hide():
+        sp = SEDplotter()
     
     fig, axx = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize,
                         sharex=True,sharey=True,
@@ -250,9 +277,10 @@ def sedplotgrid(df, nrows=5,ncols=5, figsize=(8,8), **kwargs):
     tt=[]
     for ax, (name,info) in zip(axx.flatten(), df.iterrows()):
         tt.append(fmt_info(info))
-        specfun.loc[name].sed_plot(ax=ax)
+        sp.plots(info, ax=ax)
         ax.set(**kw)
     
     show(fig, 
          tooltips=tt, 
-         caption=f"""Scales for x and y axes are {ax.get_xlim()} and {ax.get_ylim()}.""")
+         caption=f"""Scales for x and y axes are {ax.get_xlim()} GeV and 
+         {ax.get_ylim()} eV cm-2 s-1. uw1410 in blue, 4FGL in red.""")
