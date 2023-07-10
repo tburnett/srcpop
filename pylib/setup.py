@@ -16,8 +16,8 @@ def show_date():
     date=str(datetime.datetime.now())[:16]
     show(f"""<h5 style="text-align:right; margin-right:15px"> {date}</h5>""")
 
-def load_data(datafile= 'files/fermi_sources.csv',
-              selection='delta<0.2 & curvature<0.7'):
+def load_data(datafile= 'files/fermi_sources_v2.csv',
+              selection='delta<0.2'): # & curvature<0.7'):
 
     t = pd.read_csv(datafile,index_col=0 )
     df = t.query(selection).copy()

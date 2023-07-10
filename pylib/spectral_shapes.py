@@ -1,66 +1,36 @@
 
 from fermi_sources import *
 
-fs_data = None
-train_df= unid_df=None
+# fs_data = None
+# train_df= unid_df=None
 
 def intro():
     show(f"""# Spectral shape analysis""")
-    def show_date():
-        import datetime
-        date=str(datetime.datetime.now())[:16]
-        show(f"""<h5 style="text-align:right; margin-right:15px"> {date}</h5>""")
+
     show_date()
     show("""This examines the role of the spectral shape parameters curvature and peak energy in an ML 
     analysis of associated sources, used to \
     predict identies of the unassociated. The spectral fits are from uw1410, which may differ from the
     4FGL-DR4 catalog, especially for weak curved sources.
     """)
-
-def setup():
-    global fs_data , train_df, unid_df
     show(f"""## Run the classification 
         We use scikit-learn to implement ML techniques. So far only one model, `GaussianNB`.
         """)
+
+def setup(model=None, show_confusion=False):
+    # global fs_data , train_df, unid_df
+
     fs_data = FermiSources('files/fermi_sources_v2.csv')
-    from sklearn.naive_bayes import GaussianNB 
-    model = GaussianNB()
-
-    classifier = fs_data.fit(model=model)
-    fs_data.df.loc[:,'prediction'] = fs_data.predict(classifier, 'association=="unid"')
-
-    fs_data.confusion_display()
-
-    # global references to the data sets for plots below.
-    target_names =fs_data.mlspec.target_names
-    df = fs_data.df
-    train_df = df[df.association.apply(lambda x: x in target_names)]
-    unid_df = df[df.association=='unid']
+    fs_data.train_predict(model, show_confusion)
+    
+    return fs_data, fs_data.train_df, fs_data.unid_df
 
 
-
-def scatter_train_predict(df, x,y, caption, **kwargs):
-    fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,6),
-                                  sharex=True,sharey=True,
-                                 gridspec_kw=dict(wspace=0.02))
-
-    target_names =fs_data.mlspec.target_names
-
-    kw = dict()
-    kw.update(kwargs)
-    ax1.set(**kw)
-
-    sns.scatterplot(train_df, x=x, y=y, 
-                    hue_order=target_names, hue='association', ax=ax1)
-    sns.scatterplot(unid_df, x=x, y=y,  
-                    hue_order=target_names, hue='prediction', ax=ax2)
-    show(fig, caption=caption)
-
-def curvature_epeak_flux():
+def curvature_epeak_flux(fs_data):
     show(f"""### Curvature vs Epeak: compare training and unid sets""")
 
 
-    scatter_train_predict(fs_data.df,x='log_epeak', y='curvature',
+    fs_data.scatter_train_predict(x='log_epeak', y='curvature',
             caption=f"""Curvature vs peak energy for the training set on the
         left, the unid on the right.""",
                         xticks = [-1,0,1,2,3], yticks=[0,0.5,1])
@@ -72,13 +42,12 @@ def curvature_epeak_flux():
         Check the dependence of the curvature on the flux.
         """)
 
-    scatter_train_predict(fs_data.df,
-                        x='log_eflux', y='curvature',
+    fs_data.scatter_train_predict( x='log_eflux', y='curvature',
             caption=f"""Curvature vs eflux for associated sources on the
         left, the unid on the right.""",
                     xticks=[-12,-11,-10,],    yticks=[0,0.5,1])
 
-def curvature_scatter_by_type():
+def curvature_scatter_by_type(train_df):
 
     show(f"""### Scatter plots of curvature vs. Epeak for associated source types""")
     fig, axx = plt.subplots(ncols=2, nrows=2, figsize=(12,12), sharex=True, sharey=True,
@@ -106,7 +75,7 @@ def curvature_scatter_by_type():
     The correlation pointed out in 3PC is apparent.
         """)
     
-def sed_plots():
+def sed_plots(fs_data):
     show(f"""## SED plots ordered by flux
          Reference plots of 100 each of the SEDs with moderate Epeaks. The maps have tooltips with source info. 
          """)
@@ -130,11 +99,11 @@ def sed_plots():
 
 def main():
     intro()
-    setup()
+    fs_data, train_df, unid_df = setup()
     show("""## Plots showing spectral correlations""")
-    curvature_epeak_flux()
-    curvature_scatter_by_type()
-    sed_plots()
+    curvature_epeak_flux(fs_data)
+    curvature_scatter_by_type(train_df)
+    sed_plots(fs_data)
 
 import sys
 if len(sys.argv)>1:

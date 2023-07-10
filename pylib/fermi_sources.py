@@ -14,9 +14,14 @@ plt.rcParams['font.size']=14
 
 from dataclasses import dataclass
 
+def show_date():
+    import datetime
+    date=str(datetime.datetime.now())[:16]
+    show(f"""<h5 style="text-align:right; margin-right:15px"> {date}</h5>""")
+
 @dataclass
 class MLspec:
-    features: tuple = tuple("""log_nbb log_epeak curvature log_e0 log_eflux """.split())
+    features: tuple = tuple("""log_nbb log_eflux log_epeak log_e0 curvature """.split())
 
     target : str ='association'
     target_names:tuple = tuple('bll fsrq psr'.split())
@@ -34,7 +39,7 @@ class FermiSources:
     Manage the set of Fermi sources
     """
     
-    def __init__(self, datafile= 'files/fermi_sources.csv',
+    def __init__(self, datafile= 'files/fermi_sources_v2.csv',
                     selection='delta<0.25 & curvature<1.01'):
         
         t = pd.read_csv(datafile, index_col=0 )
@@ -148,6 +153,23 @@ class FermiSources:
         ypred = classifier.predict(dfq.loc[:,fnames])
         return pd.Series(ypred, index=dfq.index, name='prediction')
     
+    def train_predict(self, model=None, show_confusion=False):
+        from sklearn.naive_bayes import GaussianNB 
+ 
+        classifier = self.fit(model if model is not None else GaussianNB())
+        self.df.loc[:,'prediction'] = self.predict(classifier, 'association=="unid"')
+
+        if show_confusion:
+            self.confusion_display()
+
+        # global references to the data sets for plots below.
+        target_names =self.mlspec.target_names
+        df = self.df
+        self.train_df = df[df.association.apply(lambda x: x in target_names)]
+        self.unid_df = df[df.association=='unid']
+        # return fs_data, train_df, unid_df
+
+    
     def pairplot(self, **kwargs):
         
         ml = self.mlspec
@@ -201,6 +223,29 @@ class FermiSources:
             ax.set_title(title)
         show(fig)
 
+    def scatter_train_predict(self,  x,y, caption, **kwargs):
+        fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,6),
+                                    sharex=True,sharey=True,
+                                    gridspec_kw=dict(wspace=0.2))
+
+        target_names = self.mlspec.target_names
+        df = self.df
+
+        kw = dict()
+        kw.update(kwargs)
+        ax1.set(**kw)
+        ax1.set_title('Training')
+        ax2.set_title('Prediction')
+        sns.scatterplot(self.train_df, x=x, y=y, 
+                        hue_order=target_names, hue='association', ax=ax1)
+        ax1.legend(loc='upper right')
+        sns.scatterplot(self.unid_df, x=x, y=y,  
+                        hue_order=target_names, hue='prediction', ax=ax2)
+        ax2.legend(loc='upper right')
+        fig.text(0.51, 0.5, '⇨', fontsize=50, ha='center')
+        show(fig, caption=caption)
+
+        
 class SpecFunLookup:
     """dict allowing lookup of the uw spectral function name using 4FGL name
 
@@ -258,7 +303,7 @@ class SEDplotter:
 
 
 
-def sedplotgrid(df, nrows=5,ncols=5, figsize=(,8), **kwargs):
+def sedplotgrid(df, nrows=5,ncols=5, figsize=(10,8), **kwargs):
     
     def fmt_info(info, sep='\n  '):
         with pd.option_context('display.precision', 3):
