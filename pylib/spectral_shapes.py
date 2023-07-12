@@ -112,25 +112,3 @@ if len(sys.argv)>1:
         main()
     elif arg=='setup':
         setup()
-
-
-
-# (
-# sns.PairGrid(train_df, vars='log_eflux log_epeak curvature'.split(), 
-#              hue='association', hue_order='bll fsrq psr'.split(),
-#              corner=True, height=2) 
-
-#     .map_diag(sns.kdeplot, fill=True, ) #histplot,  bins=50, shrink=1, element='step')
-#     .map_lower(sns.scatterplot)
-#     .add_legend(loc=(0.8,0.8))
-# );
-
-# (
-# sns.PairGrid(unid_df, vars='log_eflux log_epeak curvature abs_sin_b'.split(), 
-#              hue='prediction', hue_order='bll fsrq psr'.split(),
-#              corner=True, height=2) 
-
-#     .map_diag(sns.kdeplot, fill=True) #histplot,  bins=50, shrink=1, element='step')
-#     .map_lower(sns.scatterplot)
-#     .add_legend(loc=(0.8,0.8))
-# );

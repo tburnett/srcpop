@@ -68,28 +68,31 @@ class FermiSources:
 
     def show_data(self):
         """ Make a summary of the """
-        df = self.df
-        show(f"""* Summary of the numerical contents of selected data,<br>
-        the "features" that can be used for population analysis.""")
+
+        # show(f"""* Summary of the numerical contents of selected data""")
+                 # show(self.df['eflux  pindex curvature e0 sin_b nbb var'.split()].describe(percentiles=[0.5]))
+        show("""The "features" that can be used for population analysis.""")
 
         pd.set_option('display.precision', 3)
-        show(df['eflux  pindex curvature e0 sin_b nbb var'.split()].describe(percentiles=[0.5]))
+    
         show(r"""
             | Feature   | Description 
             |-------    | ----------- 
             |`eflux`    | Energy flux for E>100 Mev, in erg cm-2 s-1 
-            |`pindex`   | Spectral index
+            |`pindex`   | Spectral index (problematical since defined differently for PLEX and LP)
             |`curvature`| Spectral curvature, the parameter $\beta$ for log-parabola
             |`e0`       | Spectral scale energy, close to the "pivot"
+            |`epeak`    | Energy of SED maximum. limited to (100 MeV-1TeV)
             |`sin_b`    | $\sin(b)$, where $b$ is the Galactic latitude 
-            |`var`      | `Variability_Index` parameter from 4FGL-DR4 
+            |`var`       | `Variability_Index` parameter from 4FGL-DR4 
             |`nbb`      | Number of Bayesian Block intervals from the wtlike analysis 
+             
         """)
 
-        show(f"""* Values and counts of the `category` column""")
-        cats = np.unique(df.category) #= 'bll fsrq psr'.split()
-        cnt = pd.Series(dict([(cat ,sum(df.category==cat)) for cat in cats]))
-        show(cnt, index=False)
+        show(f"""* Values and counts of the `association` column""")
+        fig, ax =plt.subplots(figsize=(6,3))
+        sns.countplot(self.df, x='association').set(title='4FGL-DR4 source categories');
+        show(fig, summary='Source category plot')
         
     def show_positions(self, xds,  caption=None):
         """
@@ -138,7 +141,7 @@ class FermiSources:
         X,y = self.getXy(mlspec) 
         return model.fit(X,y)
 
-    def predict(self, classifier, query=None):
+    def predict(self, query=None):
         """Return a "prediction" vector using the classifier, required to be a trained model
 
         - query -- optional query string
@@ -146,21 +149,40 @@ class FermiSources:
         return a Seriies 
         """
         # the feature names used for the classification -- expect all to be in the dataframe
-        fnames = getattr(classifier, 'feature_names_in_', [])
+        assert hasattr(self, 'classifier'), 'Model was not fit'
+        fnames = getattr(self.classifier, 'feature_names_in_', [])
         assert np.all(np.isin(fnames, self.df.columns)), f'classifier not set properly'
         dfq = self.df if query is None else self.df.query(query) 
         assert len(dfq)>0, 'No data selected'
-        ypred = classifier.predict(dfq.loc[:,fnames])
+        ypred = self.classifier.predict(dfq.loc[:,fnames])
         return pd.Series(ypred, index=dfq.index, name='prediction')
     
-    def train_predict(self, model=None, show_confusion=False):
-        from sklearn.naive_bayes import GaussianNB 
- 
-        classifier = self.fit(model if model is not None else GaussianNB())
-        self.df.loc[:,'prediction'] = self.predict(classifier, 'association=="unid"')
+    def train_predict(self, model_name='SVC', show_confusion=False, hide=False):
+
+        def get_model(name):
+            from sklearn.naive_bayes import GaussianNB 
+            from sklearn.svm import  SVC
+            from sklearn.tree import DecisionTreeClassifier
+            from sklearn.neural_network import MLPClassifier
+            from sklearn.ensemble import RandomForestClassifier
+
+            # instantiate the model by looking up the name
+
+            cdict = dict(GNB = (GaussianNB, {}),
+                        SVC = (SVC, dict(gamma=2, C=1)), 
+                        tree= (DecisionTreeClassifier, {}),
+                        RFC = (RandomForestClassifier, dict(n_estimators=100, max_features=2)),
+                        NN  = (MLPClassifier, dict(alpha=1, max_iter=1000)),
+                    )
+            F,kw = cdict[name]
+            return F(**kw)
+        
+        model = get_model(model_name)
+        self.classifier = self.fit( model )
+        self.df.loc[:,'prediction'] = self.predict()#, 'association=="unid"')
 
         if show_confusion:
-            self.confusion_display()
+            self.confusion_display(model=model, hide=hide)
 
         # global references to the data sets for plots below.
         target_names =self.mlspec.target_names
@@ -182,24 +204,23 @@ class FermiSources:
         return plt.gcf()
     
         
-    def confusion_display(self, model=None, mlspec=None, **kwargs):
+    def confusion_display(self, model, mlspec=None, hide=False, test_size=0.25, **kwargs):
         """
         """
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay 
-        from sklearn.naive_bayes import GaussianNB 
 
         Xy = self.getXy(mlspec)
-        split_kw = dict(test_size=0.25, shuffle=True)
+        split_kw = dict(test_size=test_size, shuffle=True)
         split_kw.update(kwargs)
         Xtrain, Xtest, ytrain, ytest  =  train_test_split(*Xy, **split_kw)
 
-        model = GaussianNB()  if model is None else model     # 2. instantiate model
+        # model = GaussianNB()  if model is None else model     # 2. instantiate model
         classifier = model.fit(Xtrain, ytrain)     # 3. fit model to data
         y_model = model.predict(Xtest)             # 4. predict on new data
 
-        show(f"""### Confusion matrix
-        * Model: {model.__class__.__name__}<br>
+        show(f"""### Confusion analysis, test size = {100*test_size} %
+        * Model: {str(model)}<br>
         * Features: {list(Xy[0].columns)}<br>
         Accuracy: {100*accuracy_score(ytest, y_model):.0f}%
         """)
@@ -221,9 +242,10 @@ class FermiSources:
                 )
 
             ax.set_title(title)
-        show(fig)
+        show(fig, summary=None if not hide else 'Confusion matix plot')
 
-    def scatter_train_predict(self,  x,y, caption, **kwargs):
+    def scatter_train_predict(self,  x,y, caption='', target='unid', **kwargs):
+        
         fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,6),
                                     sharex=True,sharey=True,
                                     gridspec_kw=dict(wspace=0.2))
@@ -235,16 +257,40 @@ class FermiSources:
         kw.update(kwargs)
         ax1.set(**kw)
         ax1.set_title('Training')
-        ax2.set_title('Prediction')
+        ax2.set_title(f'{target} prediction')
         sns.scatterplot(self.train_df, x=x, y=y, 
                         hue_order=target_names, hue='association', ax=ax1)
         ax1.legend(loc='upper right')
-        sns.scatterplot(self.unid_df, x=x, y=y,  
+
+        target_df = df.query(f'association=="{target}"')
+        assert len(target_df)>0, f'Failed to find target {target}'
+        sns.scatterplot(target_df, x=x, y=y,  
                         hue_order=target_names, hue='prediction', ax=ax2)
         ax2.legend(loc='upper right')
+        
         fig.text(0.51, 0.5, '⇨', fontsize=50, ha='center')
         show(fig, caption=caption)
 
+    def curvature_epeak_flux(self):
+        show(f"""### Curvature vs Epeak: compare training and unid sets""")
+
+
+        self.scatter_train_predict(x='log_epeak', y='curvature',
+                caption=f"""Curvature vs peak energy for the training set on the
+            left, the unid on the right.""",
+                            xticks = [-1,0,1,2,3], yticks=[0,0.5,1])
+        show(f"""Note that the curvature distribution is shifted to higher values in for the unid 
+        data.
+        """)
+
+        show(f"""### Curvature vs. eflux
+            Check the dependence of the curvature on the flux.
+            """)
+
+        self.scatter_train_predict( x='log_eflux', y='curvature',
+                caption=f"""Curvature vs eflux for associated sources on the
+            left, the unid on the right.""",
+                        xticks=[-12,-11,-10,],    yticks=[0,0.5,1])
         
 class SpecFunLookup:
     """dict allowing lookup of the uw spectral function name using 4FGL name

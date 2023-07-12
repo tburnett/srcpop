@@ -9,6 +9,7 @@ show(f"""# Compare peak energies
      This represents a loss of potential information in the curvature.
      A loss of information about the peak may be made up by the pivot energy.
 """)
+show_date()
 
 with capture_hide("""Load the 4FGL-DR4 catalog to look the spectral function""") as cat:
     fgl = Fermi4FGL()
