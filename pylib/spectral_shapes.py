@@ -17,7 +17,7 @@ def intro():
         We use scikit-learn to implement ML techniques. So far only one model, `GaussianNB`.
         """)
 
-def setup(model=None, show_confusion=False):
+def setup(model='SVC', show_confusion=False):
     # global fs_data , train_df, unid_df
 
     fs_data = FermiSources('files/fermi_sources_v2.csv')

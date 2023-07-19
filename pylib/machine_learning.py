@@ -2,10 +2,11 @@ from pylib.fermi_sources import *
 
 class ML(FermiSources):
 
-    def __init__(self, *pars, **kwargs):
+    def __init__(self,  *pars, **kwargs):
         from utilities.catalogs import Fermi4FGL
         show("""# Appplication of machine learning to the Fermi unassociated sources
         """)
+        show_date()
         super().__init__(*pars, **kwargs)
         fcat = Fermi4FGL()
         self.df.loc[:,'sgu'] = fcat['flags'].apply(lambda f: f[14])
@@ -26,7 +27,6 @@ class ML(FermiSources):
             * Validate, perhaps adjust feature set
             * Apply to the unid's the SGU's
             """)
-
         
     def show_prediction_association(self):
         show(f"""## Predictions
@@ -104,14 +104,16 @@ class ML(FermiSources):
         """)
         super().train_predict(show_confusion=True, hide=True)
 
-    def show_sgus(self):
+    def show_sgus(self,):
         dfq  = self.df.query('sgu==True')
         show(f"""## What about the  {len(dfq)} SGU sources?""")
         
-        fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(9,4),
+        fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(9,2.5),
                 gridspec_kw=dict(wspace=0.3))
-        sns.countplot(dfq, y ='prediction', hue_order=self.mlspec.target_names,
+        sns.countplot(dfq, y ='prediction', hue='prediction',
+                      hue_order=self.mlspec.target_names,
                       ax=ax2)
+        ax2.get_legend().remove()
         sns.countplot(dfq, y ='association', ax=ax1)
         show(fig, caption="""Left: initial association category; 
         Right: prediction assignments.
@@ -119,16 +121,17 @@ class ML(FermiSources):
         show(f"""Conclusion: mostly pulsars!""")
     
         target_names = self.mlspec.target_names
-        df = self.df.query('sgu==True')
+        # df = self.df.query('sgu==True')
         fig, ax = plt.subplots(figsize=(6,6))
-        sns.scatterplot(df, x='log_epeak', y='curvature', 
+        sns.scatterplot(dfq, x='log_epeak', y='curvature', 
                         hue_order=target_names, hue='prediction',
                         size='log_eflux', sizes=(10,200),size_norm=(-12,-10),
                         ax=ax )
         ax.set(xticks = [-1,0,1,2,3], title='SGU assignments')
         ax.legend(loc='upper right', fontsize=12);
         show(fig)
-    
+        return 
+        
     def classifier_evaluation(self):
         cnames =  [
             "Nearest Neighbors",
@@ -154,6 +157,16 @@ class ML(FermiSources):
         show('images/classifier_comparison.png')
     
         show("""We chose the first, a Support Vector Classifier""")
+    
+    def show_notes(self):
+        show("""
+            ## Notes, todos:
+            * Reexamine feature set using random forest importance measures
+            * Check sky positions--are they consistent with presumed counterpart catalog detection efficiencies and
+            expected source distributions? Perhaps include it in the training after accounting for efficiency<br>
+            * Perhaps expand the "other" category, e.g. SNRs
+            * Check some of the individual ones brought up here
+        """)
 
 def main():
     self =  ML()
@@ -166,5 +179,10 @@ def main():
     self.show_prediction_association()
     self.curvature_epeak_flux()
     self.show_sgus()
-        
-main()
+    self.show_notes()
+
+import sys
+if len(sys.argv)>1:
+    if sys.argv[1]=='main':
+        main()
+    

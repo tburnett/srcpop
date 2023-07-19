@@ -92,7 +92,10 @@ class FermiSources:
         show(f"""* Values and counts of the `association` column""")
         fig, ax =plt.subplots(figsize=(6,3))
         sns.countplot(self.df, x='association').set(title='4FGL-DR4 source categories');
-        show(fig, summary='Source category plot')
+        t = self.df.groupby('association').size()
+        id = (t.bcu+t.bll+t.fsrq+t.fsrq+t.psr)
+        show(f"""Note that the number of pulsar+blazars (including bcu) is {100*id/(id+t.other):.0f}% of the total
+            associated.""")
         
     def show_positions(self, xds,  caption=None):
         """
@@ -157,9 +160,9 @@ class FermiSources:
         ypred = self.classifier.predict(dfq.loc[:,fnames])
         return pd.Series(ypred, index=dfq.index, name='prediction')
     
-    def train_predict(self, model_name='SVC', show_confusion=False, hide=False):
+    def train_predict(self, model_name='SVC', show_confusion=False, hide=False, save_to=None):
 
-        def get_model(name):
+        def get_model(model_name):
             from sklearn.naive_bayes import GaussianNB 
             from sklearn.svm import  SVC
             from sklearn.tree import DecisionTreeClassifier
@@ -174,7 +177,7 @@ class FermiSources:
                         RFC = (RandomForestClassifier, dict(n_estimators=100, max_features=2)),
                         NN  = (MLPClassifier, dict(alpha=1, max_iter=1000)),
                     )
-            F,kw = cdict[name]
+            F,kw = cdict[model_name]
             return F(**kw)
         
         model = get_model(model_name)
@@ -190,6 +193,13 @@ class FermiSources:
         self.train_df = df[df.association.apply(lambda x: x in target_names)]
         self.unid_df = df[df.association=='unid']
         # return fs_data, train_df, unid_df
+        if save_to is not None:
+            try:
+                df.to_pickle(save_to)
+                show(f'Saved to {save_to}')
+            except Exception as e:
+                print(f'Attempt to ssve pickle to {save_to} failed, {e}', file=sys.stderr)
+                
 
     
     def pairplot(self, **kwargs):
@@ -337,41 +347,51 @@ class SEDplotter:
     def funcs(self, src):
         """ src is a Series object with index the 4FGL name, a "uw_name" entry
         return the spectral functions"""
-        return self.uw.loc[src.uw_name,'specfunc'], self.fcat.loc[src.name,'specfunc']
+        try:
+            uwf = self.uw.loc[src.uw_name,'specfunc']
+        except:
+            uwf = None
+        try:
+            fcatf =  self.fcat.loc[src.name,'specfunc']
+        except:
+            fcatf = None
+        return uwf, fcatf
         
     def plots(self, src, ax=None, **kwargs):
         fig, ax = plt.subplots(figsize=(2,2)) if ax is None else  (ax.figure, ax)
         kw = dict(xlabel='', ylabel=''); kw.update(kwargs)
 
         for f, pkw in zip(self.funcs(src), self.plot_kw):
-            f.sed_plot(ax, plot_kw=pkw)
+            if callable(f):
+                f.sed_plot(ax, plot_kw=pkw) 
         ax.set(**kw)
 
 
-
-def sedplotgrid(df, nrows=5,ncols=5, figsize=(10,8), **kwargs):
-    
+def sedplotgrid(df, ncols=10, height=1, **kwargs):
+    """ - height -- height of a row in inches """
+    N = len(df)
+    assert N>0, 'No data'
+    nrows = (N-1)//ncols +1
+    figsize= (ncols*height+0.5, nrows*height+0.5)
     def fmt_info(info, sep='\n  '):
         with pd.option_context('display.precision', 3):
             t = str(info).split('\n')[:-1]
         return info.name +sep+ sep.join(t)
-    
     with capture_hide():
         sp = SEDplotter()
-    
     fig, axx = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize,
-                        sharex=True,sharey=True,
-                       gridspec_kw=dict(top =0.99, bottom=0.01, hspace=0.1,
+                    sharex=True,sharey=True,
+                    gridspec_kw=dict(top =0.99, bottom=0.01, hspace=0.1,
                                         left=0.01, right =0.99, wspace=0.1,))
     kw = dict(xticks=[], yticks=[], xlabel='', ylabel='', ylim=(0.02,10))    
     kw.update(kwargs)
     tt=[]
-    for ax, (name,info) in zip(axx.flatten(), df.iterrows()):
+    for ax, (name,info) in zip(axx.flat, df.iterrows()):
         tt.append(fmt_info(info))
         sp.plots(info, ax=ax)
         ax.set(**kw)
     
     show(fig, 
          tooltips=tt, 
-         caption=f"""Scales for x and y axes are {ax.get_xlim()} GeV and 
-         {ax.get_ylim()} eV cm-2 s-1. uw1410 in blue, 4FGL in red.""")
+         caption=f"""SED plots. Scales for the x and y axes are {ax.get_xlim()} GeV and 
+         {ax.get_ylim()} eV cm-2 s-1. uw1410 in blue, 4FGL-DR4 in red.""")
