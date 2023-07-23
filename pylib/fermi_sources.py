@@ -335,15 +335,23 @@ class SEDplotter:
     """ Manage SED plots showing both UW and 4FGL-DR4 
 
     """
-    def __init__(self):
+    def __init__(self, plec=False):
         """ set up the catalogs that have specfunc columns"""
         from utilities.catalogs import UWcat, Fermi4FGL
         self.uw = UWcat('uw1410')
         self.uw.index = self.uw.jname  # make it indexsed by the uw jname
         self.uw.index.name = 'UW jname'
         self.fcat = Fermi4FGL()
+        self.plec =plec
         self.plot_kw=[dict(lw=4,color='blue', alpha=0.5),dict(color='red')]
         
+    def fgl_plec(self, name):
+        from utilities.catalogs import PLSuperExpCutoff4
+        fgl_names =list(self.fcat.index) 
+        row = self.fcat.data[fgl_names.index(name)]
+        pars = [row[par] for par in 'PLEC_Flux_Density PLEC_IndexS PLEC_ExpfactorS PLEC_Exp_Index'.split()]
+        return  PLSuperExpCutoff4(pars)
+
     def funcs(self, src):
         """ src is a Series object with index the 4FGL name, a "uw_name" entry
         return the spectral functions"""
@@ -352,8 +360,12 @@ class SEDplotter:
         except:
             uwf = None
         try:
-            fcatf =  self.fcat.loc[src.name,'specfunc']
+            # fcatf =  self.fcat.loc[src.name,'specfunc']
+            fcatf = self.fgl_plec(src.name) if self.plec else \
+                    self.fcat.loc[src.name,'specfunc']
+            
         except:
+            raise
             fcatf = None
         return uwf, fcatf
         
@@ -378,7 +390,7 @@ def sedplotgrid(df, ncols=10, height=1, **kwargs):
             t = str(info).split('\n')[:-1]
         return info.name +sep+ sep.join(t)
     with capture_hide():
-        sp = SEDplotter()
+        sp = SEDplotter(plec=kwargs.pop('plec', False))
     fig, axx = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize,
                     sharex=True,sharey=True,
                     gridspec_kw=dict(top =0.99, bottom=0.01, hspace=0.1,
