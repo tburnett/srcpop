@@ -10,8 +10,8 @@ Data:
 
 
 Notebooks:
+* [Perform machine learning classification](machine_learning.ipynb)
 * [Spectral parameters and UW/DR4 difference](study_spectra.ipynb).
-* [Population study](population_study.ipynb)
 * [Compare UW and 4FGL Epeaks](compare_epeak.ipynb)
 * [Compare the *predicted*  pulsars with the *identified* set](pulsar_pop.ipynb)
 
