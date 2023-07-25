@@ -350,7 +350,7 @@ class SEDplotter:
         fgl_names =list(self.fcat.index) 
         row = self.fcat.data[fgl_names.index(name)]
         pars = [row[par] for par in 'PLEC_Flux_Density PLEC_IndexS PLEC_ExpfactorS PLEC_Exp_Index'.split()]
-        return  PLSuperExpCutoff4(pars)
+        return  PLSuperExpCutoff4(pars, e0=row['Pivot_Energy'])
 
     def funcs(self, src):
         """ src is a Series object with index the 4FGL name, a "uw_name" entry
@@ -379,7 +379,7 @@ class SEDplotter:
         ax.set(**kw)
 
 
-def sedplotgrid(df, ncols=10, height=1, **kwargs):
+def sedplotgrid(df, ncols=10, height=1, fignum=None, **kwargs):
     """ - height -- height of a row in inches """
     N = len(df)
     assert N>0, 'No data'
@@ -404,6 +404,7 @@ def sedplotgrid(df, ncols=10, height=1, **kwargs):
         ax.set(**kw)
     
     show(fig, 
+         fignum=fignum,
          tooltips=tt, 
          caption=f"""SED plots. Scales for the x and y axes are {ax.get_xlim()} GeV and 
          {ax.get_ylim()} eV cm-2 s-1. uw1410 in blue, 4FGL-DR4 in red.""")

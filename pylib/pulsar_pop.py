@@ -11,32 +11,33 @@ def get_source_data(filename='files/classification.pkl'):
     return df
 
 def introduction(npsr=312, nunid=762, nsgu=None):
-    show(f"""# LAT pulsars: identified and predicted""")
+    show(f"""# LAT pulsars: identified and predicted
+        """)
     show_date()
     show(f"""
-        This is a study of LAT sources, comparing the {npsr} *identified* as pulsars in 4FGL-DR4 with the {nunid} unassociated sources
-        *predicted* to be pulsars using a [ML classification analysis](machine_learning.ipynb). 
-        The predictions were based on the spectral and variability properties measured 
-        in the `uw1410` all-sky analysis used to provide seeds for 4FGL-DR4 and a `wtlike` study, respectively.
+        This is a study of LAT sources which compares the {npsr} *identified* as pulsars in 4FGL-DR4 with the {nunid} unassociated sources
+        *predicted* to be so using a [ML classification analysis](machine_learning.ipynb). 
+        The predictions were based on the spectral properties measured 
+        in the `uw1410` all-sky analysis used to provide seeds for 4FGL-DR4 and a variability measure determined
+        using [wtlike](https://pypi.org/project/wtlike/). 
     
         Here we look carefully at both spectral and positional properties of the two sets to look for inconsistencies.
         
-        ### Two possible conclusions:
-        Assuming that these are dominated by a single source type, the possibilities are:<br>
+        ### There seem to be two possible conclusions:
+        Assuming that the unassociated sources predicted to be pulsars are dominated by a single source type,
+        and noting that the positional distribution shows that they are galactic, the possibilities are:<br>
         
-        **A)** The unid's predicted to be pulsars are mostly undetected pulsars <br>
+        **A)** The unid's predicted to be pulsars are indeed undetected pulsars <br>
         **B)** There is a new, unknown galactic population of gamma-ray sources that only *look* like pulsars
          
-        Perhaps applicable philosophical principles: Occam's razor and the [duck test](https://en.wikipedia.org/wiki/Duck_test). 
-        Both would favor option A. But option A implies that we understand how such a 
-        large number of pulsars would be easily detected by the LAT, yet not seen in radio.
-    
+        Perhaps applicable philosophical principles are Occam's razor and the [duck test](https://en.wikipedia.org/wiki/Duck_test). 
+        Both would favor option A. This option implies that we understand how such a 
+        large number of pulsars would be easily detected by the LAT, yet not found in radio searches so far.
         """)
 
 class Pulsars:
     def __init__(self):
         from utilities.catalogs import Fermi4FGL, UWcat
-        sns.set_context('notebook')
         self.df =  get_source_data()
         
         df = self.df
@@ -61,7 +62,7 @@ class Pulsars:
         cnamed = list(map( lambda n: n[:-1], filter(lambda n: n[-1]=='c', fcat.index))); 
         # reindex to add "C" 
         self.df.index = [ name +'c' if name in cnamed else name  for name in self.df.index]
-        self.df.loc[:,'sgu'] = fcat['flags'].apply(lambda f: f[14])
+        self.df['sgu'] = fcat['flags'].apply(lambda f: f[14])
         self.df.loc[:,'fcat_epeak'] = fcat.specfunc.apply(lambda f: f.sedfun.peak)
         self.df.loc[:,'fcat_curvature']= fcat.specfunc.apply(lambda f: f.curvature())   
 
@@ -81,7 +82,7 @@ def sinbplots(data, row, row_order, bins=np.linspace(0.01,1,41)):
     )
     show(plt.gcf())
 
-def select_data(self=None, outfile=None):
+def select_data(self=None, outfile=None, quiet=False):
     df = self.df if self is not None else Pulsars().df
 
     data = df.query('actual_type=="Pulsar" |' \
@@ -92,7 +93,7 @@ def select_data(self=None, outfile=None):
     npred = t.predicted
     nsgu = data.set_index('pulsar_id').loc['predicted'].groupby('sgu').size()[True]
     
-    introduction(t.IDed, npred, nsgu)
+    if not quiet: introduction(t.IDed, npred, nsgu)
     if outfile is not None:
         try: 
             data.to_csv(outfile)
@@ -137,7 +138,7 @@ def reset_labels(self, vars, labels):
 
 def corner(data, fignum=1,
           vars='log_fpeak log_epeak curvature abs_sin_b abs_glon'.split(),
-          labels=[r'$\log(F_{peak})$',r'$\log(E_{peak})$', 'curvature',r'$|\sin(b)|$',r'$|l|$'],
+          labels=[r'$\log(F_p)$',r'$\log(E_p)$', 'curvature',r'$|\sin(b)|$',r'$|l|$'],
           ):
     show(f""" ## Source property corner plot 
         This "corner plot" shows the correlations of source properties grouped with the 
@@ -161,7 +162,7 @@ def corner(data, fignum=1,
     The actual pulsars are in two populations, MSP and young pulsars, the former dominating high latitudes.
     The unids are broader in $b$, but narrower in $l$. We will distinguish these in a detailed plot below.
     * Spectral vs. position:<br>
-    There are clear correlations of both populations in the $F_{peak}$ vs. $|\sin(b)]$ which we look at below.
+    There are clear correlations of both populations in the $F_p$ vs. $|\sin(b)]$ which we look at below.
     """)
                   
 def plike(rec):
@@ -178,7 +179,7 @@ def show_positions(data, fignum=None):
     """)
     x,y,hue = data.glon, data.abs_sin_b, data.pulsar_type
     
-    g=sns.JointGrid(  height=10,ratio=4)
+    g=sns.JointGrid(  height=10,ratio=5)
     sns.scatterplot(x=x, y=y, hue=hue,size=data.log_fpeak, sizes=(10,200), ax=g.ax_joint)
     sns.histplot(x=x, hue=hue, ax=g.ax_marg_x, element='step', kde=True)
     sns.histplot(y=y, hue=hue, ax=g.ax_marg_y, element='step', kde=True)
@@ -189,11 +190,16 @@ def show_positions(data, fignum=None):
     g.set_axis_labels(xlabel='$l$', ylabel=r'$|\sin(b)|$')
     for ax in (g.ax_marg_x, g.ax_marg_y):
         ax.get_legend().set_visible(False)
+        for ax in (g.ax_marg_x, g.ax_marg_y):
+            ax.get_legend().set_visible(False)
+
+    g.ax_joint.plot([-45,-45,45,45,-45], np.sin(np.radians([2,15,15,2,2])), ls='--', color="0.3")
    
     show(plt.gcf(), fignum=fignum, caption='')
     show(r"""
         Here we see that the pulsar-like unids are found at all latituedes and longitudes,
-         but there is a concentration for $|l|<45^\circ$ and $|b|<20^\circ$.
+         but there is a concentration for $|l|<45^\circ$ and $2^\circ<|b|<15^\circ$: we select those in
+         this region indicated by the dashed line.
          """)
 
 def show_flux_vs_b(data):
@@ -240,7 +246,6 @@ def subset(data, quiet=False):
         describe(df) 
     return df
 
-
 def show_peak_properties(data, select=describe, 
                         heading="""## Spectral properties """):
     show(heading)
@@ -260,7 +265,7 @@ def show_peak_properties(data, select=describe,
     show(plt.gcf(), )
 
 def curvature_vs_fpeak(data, fignum=None):
-    show(f"""### Curvature *vs.* $F_{{peak}}$
+    show(f"""### Curvature *vs.* $F_p$
     """)
     y,x,hue = data.curvature, data.log_fpeak, data.pulsar_type
     g=sns.JointGrid(  height=8,ratio=5)
@@ -271,7 +276,7 @@ def curvature_vs_fpeak(data, fignum=None):
     for ax in (g.ax_joint, g.ax_marg_x):
         ax.set(xticks=np.arange(0,5.1,2), xticklabels=' 1 100 $10^4$'.split(),
               xlim=(-1.5,5))
-    g.set_axis_labels(ylabel='Curvature', xlabel=r'$F_{peak}$ (eV cm-2 s-1)')
+    g.set_axis_labels(ylabel='Curvature', xlabel=r'$F_p$ (eV cm-2 s-1)')
     for ax in (g.ax_marg_x, g.ax_marg_y):
         ax.get_legend().set_visible(False)
     show(g.ax_joint.figure, fignum=fignum, caption='')
@@ -297,39 +302,48 @@ def sed_plots(data):
     sedplotgrid(notsgu[cols], nrows=13, ncols=10, )
 
 def spectral_correlations(data, fignum=None):
-
     
     show(r"""### Curvature vs peak parameters
         We are characterizing spectra with properties of the peak in the SED: its flux, 
-         $F_{peak}$, and
-        energy, $E_{peak}$. The latter is bounded to be greater than 100 MeV. 
+         $F_p$, and
+        energy, $E_p$. The latter is bounded to be greater than 100 MeV. 
          """)
     fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(15,7), sharey=True, 
                                  gridspec_kw=dict(wspace=0.05))
-    sns.scatterplot(data, y='curvature',x='log_epeak', hue='pulsar_type', alpha=0.5,
+    sns.scatterplot(data, y='curvature',x='log_epeak', hue='pulsar_type', alpha=0.8,
                     size='log_fpeak', sizes=(10,200),ax=ax1);
     sns.kdeplot(data, y='curvature',x='log_epeak', hue='pulsar_type', ax=ax1);
-    ax1.set(xticks=[-1,0,1], xticklabels='0.1 1 10'.split(), xlabel=r'$E_{peak}$ (GeV)',
-           xlim=(-1.5,1), yticks=np.arange(0,1.1,0.25))
+    ax1.set(xticks=[-1,0,1], xticklabels='0.1 1 10'.split(), xlabel=r'$E_p$ (GeV)',
+           xlim=(-1.2,1), yticks=np.arange(0,1.1,0.25))
     
-    sns.scatterplot(data, y='curvature',x='log_fpeak', hue='pulsar_type',alpha=0.5,
+    sns.scatterplot(data, y='curvature',x='log_fpeak', hue='pulsar_type',alpha=0.8,
                     size='log_fpeak', sizes=(10,200),ax=ax2);
     sns.kdeplot(data, y='curvature',x='log_fpeak', hue='pulsar_type',ax=ax2)
-    ax2.set(xlabel=r'$F_{peak}$ (eV cm-2 s-1)', xticks=[0,2,4,6], 
-            xticklabels='1 100 $10^4$ $10^6$'.split(), xlim=(-1.9,5.5));
+    ax2.set(xlabel=r'$F_p$ (eV cm-2 s-1)', xticks=[0,2,4,6], 
+            xticklabels='1 100 $10^4$ $10^6$'.split(), xlim=(-1.9,5.5), ylim=(-0.1,1.1));
     ax2.get_legend().set_visible(False)
-    show(fig, fignum=fignum, caption='')
+    ax2.plot([-1.5,np.log10(60),np.log10(60),], [0.5,0.5,1.2,],ls='--', color='0.3')
+    show(fig, fignum=fignum, 
+         caption="""Spectral correlation parameter vs. the peak energy $E_p$' on the left, and flux $F_p$ on the right.
+         The latter shows the high-correlation region selected to enhance the selection of the enhancement of the predicted category below.""")
 
-def sinb_vs_fpeak(data, fignum=None):
-    show(r"""### $|\sin(b)|$ vs. $F_{peak}$ """)
-    fig, ax = plt.subplots(figsize=(8,6))
-    sns.scatterplot(data, y='abs_sin_b',x='log_fpeak', hue='pulsar_type', alpha=0.5,
-                        size='log_fpeak', sizes=(10,200),ax=ax);
-    sns.kdeplot(data, y='abs_sin_b',x='log_fpeak', hue='pulsar_type', ax=ax);
-    ax.set(xlim=(-1.5,3.9), ylim=(-0.05,0.5), 
-           xlabel='$F_{peak}$ (eV cm-2 s-1)', ylabel=f'$|\sin(b)|$', 
-           xticks=[0,2,], xticklabels='1 100'.split(), );
-    show(fig, fignum=fignum, caption='')
+
+def fpeak_vs_sinb(data, fignum=None):
+    show(r"""###  $F_p$ vs $|\sin(b)|$""")
+    fig, ax = plt.subplots(figsize=(10,8))
+    kw = dict(data=data, x='abs_sin_b', y='log_fpeak', hue='pulsar_type', ax=ax)
+    sns.scatterplot(alpha=0.8,  size='log_fpeak', sizes=(10,200),    **kw)
+    sns.kdeplot(**kw)
+    ax.set(xlabel=f'$|\sin(b)|$', xlim=(-0.02,1.0), 
+           ylabel='$F_p$ (eV cm-2 s-1)', ylim=(-1.5,3.9),
+           yticks=[0,2,], yticklabels='1 100'.split(), );
+    a,b = [np.sin(np.radians(x)) for x in (2,15)] 
+    c = np.log10(60)
+    ax.plot([a,a,b,b],[-2,c,c,-2], ls='--', color='0.3')
+    show(fig, fignum=fignum, 
+         caption="""Scatter plot of $F_p$ vs. $|sin(b)|$ with KDE contours. The region inside the dashed line
+         is the subset selection criterion.
+         """)
 
 def position_cut(data, quiet=False, l_lim=(-45,45), b_lim =(2,15)):
     # df = data.query('-45<glon<45 & 0.034<abs_sin_b<0.259') #-0.523<log_epeak<0.523 &
@@ -343,10 +357,10 @@ def position_cut(data, quiet=False, l_lim=(-45,45), b_lim =(2,15)):
         """)  
         describe(df) 
     return df
-def spectral_cut(data, quiet=False, cmin=0.5, fpeak_max = 90):
+def spectral_cut(data, quiet=False, cmin=0.5, fpeak_max=60):
     df = data[(data.curvature>cmin) & (data.log_fpeak<np.log10(fpeak_max))]
     if not quiet:
-        show(f"""Spectral cut: $F_{{peak}}$ < {fpeak_max} and curvature>{cmin} 
+        show(f"""Spectral cut: $F_p$ < {fpeak_max} and curvature>{cmin} 
         """)
     describe(df)
     return df 
@@ -358,32 +372,34 @@ def special(data, fignum=None):
     cols = 'ts glat glon log_fpeak log_epeak curvature sgu uw_name'.split()
     df = special.query('pulsar_type=="predicted"')[cols].sort_values('ts', 
                                                         ascending=False)
-    show("""### SED plots """)
-    sedplotgrid(df)
+    show("""### SED plots 
+         
+         """)
+    sedplotgrid(df, fignum=fignum)
     return df
 
 def main():
     import warnings
     warnings.filterwarnings("ignore")
-    sns.set_context('talk')
+    
     data = select_data()
+    sns.set_context('talk')
     corner(data, fignum=1)
     show(f"""
-    ## Three pulsar categories 
-    There are two distinct pulsar types: young, rotation-powered (RPP), and those spun up by a
+    ## Three source categories 
+    There are two identified pulsar categories: young, rotation-powered (RPP), and those spun up by a
     companion star to millisecond periods, (MSP). These were combined for the classification process, but since
-    there are small spectral and large position difference, we distinguish them below. The unidentified sources
-    predicted to be pulsars represent a third "type".  The numbers:           
+    there are small spectral and large position difference, we distinguish them below. The unassociared sources
+    predicted to be pulsars represent a third category, labeled "predicted" below.  Their numbers:           
     """)
     describe(data)
     show_positions(data, fignum=2)
     spectral_correlations(data, fignum=3)
-    sinb_vs_fpeak(data, fignum=4)          
+    fpeak_vs_sinb(data, fignum=4)          
     df = special(data, fignum=5)
     df.index.name = '4FGL-DR4'
     filename = 'files/psr_candidates.csv'
-    pd.set_option('display.precision',3)  
-    df.to_csv(filename)
+    df.to_csv(filename, float_format='%.3f')
     show(f"""Wrote the selected pulsar candidates, sorted by TS, to `{filename}` with {len(df)} entries.""")
 
 #-------------------------------------------------------------------------------    
@@ -391,4 +407,7 @@ if len(sys.argv)>1:
     if sys.argv[1]=='main':
         main()
 
+else:    
+    data = select_data(quiet=True)
+    sns.set_context('talk')
 
