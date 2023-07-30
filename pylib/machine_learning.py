@@ -2,19 +2,20 @@ from pylib.fermi_sources import *
 
 class ML(FermiSources):
 
-    def __init__(self,  *pars, **kwargs):
+    def __init__(self,  *pars, 
+                 title="""Application of machine learning to the Fermi unassociated sources
+                """,
+                 **kwargs):
         from utilities.catalogs import Fermi4FGL
-        show("""# Appplication of machine learning to the Fermi unassociated sources
-        """)
+        show('# '+title)
         show_date()
         super().__init__(*pars, **kwargs)
         fcat = Fermi4FGL()
         self.df.loc[:,'sgu'] = fcat['flags'].apply(lambda f: f[14])
         self.df.loc[:,'fcat_epeak'] = fcat.specfunc.apply(lambda f: f.sedfun.peak)
-        self.df.loc[:,'fcat_curvature']= fcat.specfunc.apply(lambda f: f.curvature())
+        self.df.loc[:,'fcat_curvature']= 2 * fcat.specfunc.apply(lambda f: f.curvature())
 
-        sns.set_context('notebook')
-        
+       
     def outline(self):
         show(f"""
             ## Outline
@@ -25,10 +26,10 @@ class ML(FermiSources):
             * Choose "featues"
             * Evaluate classifier options, select one
             * Validate, perhaps adjust feature set
-            * Apply to the unid's the SGU's
+            * Apply to the unid's (including "SGU"s)
             """)
         
-    def show_prediction_association(self):
+    def show_prediction_association(self, fignum=None, caption=''):
         show(f"""## Predictions
         """)
 
@@ -42,14 +43,14 @@ class ML(FermiSources):
         ax.invert_yaxis()
         ax.set(title='Prediction counts', ylabel='Association type')
         ax.legend(bbox_to_anchor=(0.8,0.8), loc='lower left', frameon=True )
-        show(fig)
+        show(fig, fignum=None, caption=caption)
         show(f"""Notes:
         * The target is the unids, but applied to all
         * BCUs mostly blazars, a check
         * BLL, FSRQ, Pulsar look OK (a little redundant), a check
         """)
 
-    def compare_variabilities(self):
+    def compare_variabilities(self, fignum=None):
         show(f"""### Variability measures: nbb vs variability
         """)
         fig, ax = plt.subplots(figsize=(8,8))
@@ -59,10 +60,11 @@ class ML(FermiSources):
         ax.set(xlabel='log(variabilitiy)', ylabel='log(nbb)');
         ax.axvline(np.log10(26), color='0.6', ls='--')
         ax.axhline(np.log10(1.5), color='0.6', ls='--')
-        show(fig, caption='Log nbb vs log variability. Dashed lines show thresholds.')
+        show(fig, fignum=fignum,
+             caption='Log nbb vs log variability. Dashed lines show thresholds.')
         show(f"""**➜** Choose `nbb` since it detects BL Lac variability missed by 4FGL
         """)
-    def scatter_train_predict(self,  x,y, caption='', target='unid', **kwargs):
+    def scatter_train_predict(self,  x,y, fignum=None, caption='', target='unid', **kwargs):
         
         fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,6),
                                     sharex=True,sharey=True,
@@ -91,20 +93,20 @@ class ML(FermiSources):
         ax2.legend(loc='upper right')
         
         fig.text(0.51, 0.5, '⇨', fontsize=50, ha='center')
-        show(fig, caption=caption)
+        show(fig, fignum=fignum, caption=caption)
         
-    def pairplot(self):
+    def pairplot(self, fignum=None):
         show(f"""## Examine correlations among selected features
         """)
-        show(super().pairplot(), caption="""A KDE "pairplot" of the chosen features
+        show(super().pairplot(), fignum=fignum, caption="""A KDE "pairplot" of the chosen features
         """)
 
-    def train_predict(self):
-        show(f"""## Train, predict, assess results
-        """)
-        super().train_predict(show_confusion=True, hide=True)
+    # def train_predict(self, fignum=None):
+    #     show(f"""## Train, predict, assess results
+    #     """)
+    #     super().train_predict(show_confusion=True, hide=True)
 
-    def show_sgus(self,):
+    def show_sgus(self, fignum=None, caption=''):
         dfq  = self.df.query('sgu==True')
         show(f"""## What about the  {len(dfq)} SGU sources?""")
         
@@ -127,9 +129,10 @@ class ML(FermiSources):
                         hue_order=target_names, hue='prediction',
                         size='log_eflux', sizes=(10,200),size_norm=(-12,-10),
                         ax=ax )
-        ax.set(xticks = [-1,0,1,2,3], title='SGU assignments')
+        ax.set(**epeak_kw('x'), #xticks = [-1,0,1,2,3], 
+               title='SGU assignments')
         ax.legend(loc='upper right', fontsize=12);
-        show(fig)
+        show(fig, fignum=fignum, caption=caption)
         return 
         
     def classifier_evaluation(self):
@@ -169,16 +172,19 @@ class ML(FermiSources):
         """)
 
 def main():
-    self =  ML()
+
+    fn = FigNum()
+    sns.set_context('talk')
+    self =  ML(mlspec=MLspec())
     self.outline()
     self.show_data()
-    self.compare_variabilities()
-    self.pairplot()
+    self.compare_variabilities(fignum=fn.next)
+    self.pairplot(fignum=fn.next)
     self.classifier_evaluation()
     self.train_predict()
-    self.show_prediction_association()
-    self.curvature_epeak_flux()
-    self.show_sgus()
+    self.show_prediction_association(fignum=fn.next)
+    self.curvature_epeak_flux(fignum=fn.next); fn.next
+    self.show_sgus(fignum=fn.next)
     self.show_notes()
 
 import sys

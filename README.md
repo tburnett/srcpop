@@ -14,4 +14,5 @@ Notebooks:
 * [Spectral parameters and UW/DR4 difference](study_spectra.ipynb).
 * [Compare UW and 4FGL Epeaks](compare_epeak.ipynb)
 * [Compare the *predicted*  pulsars with the *identified* set](pulsar_pop.ipynb)
+*  [Study curvature](curvature.ipynb)
 

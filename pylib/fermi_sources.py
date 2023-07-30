@@ -14,6 +14,25 @@ plt.rcParams['font.size']=14
 
 from dataclasses import dataclass
 
+@dataclass
+class FigNum:
+    n = 0
+    @property
+    def next(self):
+        self.n +=1
+        return self.n
+    
+def fpeak_kw(axis='x'):
+    return {axis+'label':r'$F_p \ \ \mathrm{(eV\ s^{-1}\ cm^{-2})}$', 
+            axis+'ticks': np.arange(-2,5,2),
+            axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(), 
+            }
+def epeak_kw(axis='x'):
+    return {axis+'label':'$E_p$  (GeV)',
+            axis+'ticks': np.arange(-1,3.1,1),
+            axis+'ticklabels':'0.1 1 10 100 1000'.split(),
+            }
+
 def show_date():
     import datetime
     date=str(datetime.datetime.now())[:16]
@@ -21,7 +40,7 @@ def show_date():
 
 @dataclass
 class MLspec:
-    features: tuple = tuple("""log_nbb log_eflux log_epeak log_e0 curvature """.split())
+    features: tuple = tuple("""log_nbb log_fpeak log_epeak curvature """.split())
 
     target : str ='association'
     target_names:tuple = tuple('bll fsrq psr'.split())
@@ -40,9 +59,12 @@ class FermiSources:
     """
     
     def __init__(self, datafile= 'files/fermi_sources_v2.csv',
-                    selection='delta<0.25 & curvature<1.01'):
+                mlspec=None,
+                selection='delta<0.25 & curvature<2.1'):
         
         t = pd.read_csv(datafile, index_col=0 )
+        t.curvature *=2 # temporary fix to be "spectral curvature" here
+
         self.df = df = t.query(selection).copy()
         show(f"""Read {len(t)} source entries from `{datafile}`, selected {len(df)} with criteria '{selection}'""")  
 
@@ -63,8 +85,9 @@ class FermiSources:
         sfl = SpecFunLookup(df) #[unid.index[1]]
         specfun = pd.Series(dict([ (idx,sfl[idx]) for idx in df.index]))
         df.loc[:,'log_epeak'] = specfun.apply(lambda f: f.sedfun.peak)
+        df['log_fpeak'] = specfun.apply(lambda f: f.fpeak)
 
-        self.mlspec = MLspec() # default for classificaiotn
+        self.mlspec = MLspec() if mlspec is None else mlspec  # default for classificaiotn
 
     def show_data(self):
         """ Make a summary of the """
@@ -80,11 +103,12 @@ class FermiSources:
             |-------    | ----------- 
             |`eflux`    | Energy flux for E>100 Mev, in erg cm-2 s-1 
             |`pindex`   | Spectral index (problematical since defined differently for PLEX and LP)
-            |`curvature`| Spectral curvature, the parameter $\beta$ for log-parabola
+            |`curvature`| Spectral curvature, twice the log-parabola parameter $\beta$
             |`e0`       | Spectral scale energy, close to the "pivot"
-            |`epeak`    | Energy of SED maximum. limited to (100 MeV-1TeV)
+            |`epeak`    | $E_p$, Energy of SED maximum. limited to (100 MeV-1TeV)
+            |`fpeak`    | $F_p$,  differential flux, in eV s-1 cm-2, at `epeak`
             |`sin_b`    | $\sin(b)$, where $b$ is the Galactic latitude 
-            |`var`       | `Variability_Index` parameter from 4FGL-DR4 
+            |`var`      | `Variability_Index` parameter from 4FGL-DR4 
             |`nbb`      | Number of Bayesian Block intervals from the wtlike analysis 
              
         """)
@@ -160,7 +184,7 @@ class FermiSources:
         ypred = self.classifier.predict(dfq.loc[:,fnames])
         return pd.Series(ypred, index=dfq.index, name='prediction')
     
-    def train_predict(self, model_name='SVC', show_confusion=False, hide=False, save_to=None):
+    def train_predict(self,  model_name='SVC', show_confusion=False, hide=False, save_to=None):
 
         def get_model(model_name):
             from sklearn.naive_bayes import GaussianNB 
@@ -254,7 +278,7 @@ class FermiSources:
             ax.set_title(title)
         show(fig, summary=None if not hide else 'Confusion matix plot')
 
-    def scatter_train_predict(self,  x,y, caption='', target='unid', **kwargs):
+    def scatter_train_predict(self,  x,y,fignum=None, caption='', target='unid', **kwargs):
         
         fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,6),
                                     sharex=True,sharey=True,
@@ -265,11 +289,12 @@ class FermiSources:
 
         kw = dict()
         kw.update(kwargs)
-        ax1.set(**kw)
+
         ax1.set_title('Training')
         ax2.set_title(f'{target} prediction')
         sns.scatterplot(self.train_df, x=x, y=y, 
                         hue_order=target_names, hue='association', ax=ax1)
+        ax1.set(ylabel='Spectral curvature', **kw)
         ax1.legend(loc='upper right')
 
         target_df = df.query(f'association=="{target}"')
@@ -277,30 +302,36 @@ class FermiSources:
         sns.scatterplot(target_df, x=x, y=y,  
                         hue_order=target_names, hue='prediction', ax=ax2)
         ax2.legend(loc='upper right')
+        ax2.set(**kw)
+        ax2.set(xlabel = kw['xlabel']) #
+        show(f'Labels? {ax1.get_xlabel()}, {ax2.get_xlabel()}')
         
         fig.text(0.51, 0.5, '⇨', fontsize=50, ha='center')
-        show(fig, caption=caption)
+        show(fig, fignum=fignum, caption=caption)
 
-    def curvature_epeak_flux(self):
-        show(f"""### Curvature vs Epeak: compare training and unid sets""")
+    def curvature_epeak_flux(self, fignum=None):
+        show(f"""### Curvature vs $E_p$: compare training and unid sets""")
 
 
-        self.scatter_train_predict(x='log_epeak', y='curvature',
+        self.scatter_train_predict(x='log_epeak', y='curvature', fignum=fignum,
                 caption=f"""Curvature vs peak energy for the training set on the
             left, the unid on the right.""",
-                            xticks = [-1,0,1,2,3], yticks=[0,0.5,1])
+                            **epeak_kw('x'),
+                            yticks=[0,0.5,1,1.5,2]
+                            )
         show(f"""Note that the curvature distribution is shifted to higher values in for the unid 
         data.
         """)
 
-        show(f"""### Curvature vs. eflux
+        show(f"""### Curvature vs. $F_p$
             Check the dependence of the curvature on the flux.
             """)
 
-        self.scatter_train_predict( x='log_eflux', y='curvature',
+        self.scatter_train_predict( x='log_fpeak', y='curvature',fignum=fignum+1 if fignum is not None else None,
                 caption=f"""Curvature vs eflux for associated sources on the
             left, the unid on the right.""",
-                        xticks=[-12,-11,-10,],    yticks=[0,0.5,1])
+                        **fpeak_kw('x'),
+                          yticks=[0,0.5,1,1.5,2])
         
 class SpecFunLookup:
     """dict allowing lookup of the uw spectral function name using 4FGL name

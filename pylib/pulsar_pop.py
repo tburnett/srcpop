@@ -8,10 +8,11 @@ def get_source_data(filename='files/classification.pkl'):
         assert f.is_file(), f'Failed to create {filename}'
     df =  pd.read_pickle(filename)
     df.index.name='4FGL-DR4'
+    df.curvature = 2*df.curvature ### convert to spectral curvature (temp)
     return df
 
 def introduction(npsr=312, nunid=762, nsgu=None):
-    show(f"""# LAT pulsars: identified and predicted
+    show(f"""# LAT pulsars: {npsr} identified but {nunid} predicted
         """)
     show_date()
     show(f"""
@@ -23,7 +24,7 @@ def introduction(npsr=312, nunid=762, nsgu=None):
     
         Here we look carefully at both spectral and positional properties of the two sets to look for inconsistencies.
         
-        ### There seem to be two possible conclusions:
+        ### Two hypotheses:
         Assuming that the unassociated sources predicted to be pulsars are dominated by a single source type,
         and noting that the positional distribution shows that they are galactic, the possibilities are:<br>
         
@@ -31,7 +32,7 @@ def introduction(npsr=312, nunid=762, nsgu=None):
         **B)** There is a new, unknown galactic population of gamma-ray sources that only *look* like pulsars
          
         Perhaps applicable philosophical principles are Occam's razor and the [duck test](https://en.wikipedia.org/wiki/Duck_test). 
-        Both would favor option A. This option implies that we understand how such a 
+        Both favor option A. But acceptance of this hypothesis requires that we understand how such a 
         large number of pulsars would be easily detected by the LAT, yet not found in radio searches so far.
         """)
 
@@ -168,21 +169,21 @@ def corner(data, fignum=1,
 def plike(rec):
     class1 = rec.class1
     if not pd.isna(class1) and class1.lower() in ('msp','psr'): 
-        return dict(msp='MSP', psr='RPP')[rec.class1.lower()]
+        return dict(msp='MSP', psr='young')[rec.class1.lower()]
     if rec.association=='unid' and rec.prediction=='psr': return 'predicted'
 
 def show_positions(data, fignum=None):
     show(f"""### Source positions
     We saw in Fig. 1 that the position distributions for the pulsar-like unids
     differed from the true pulsars. Here we expand that correlation plot, 
-    distinguishing the young, rotationaly-powered pulsars ("RPP") from MSPs ("MSP").
+    distinguishing the young, rotationaly-powered pulsars ("young") from MSPs ("MSP").
     """)
     x,y,hue = data.glon, data.abs_sin_b, data.pulsar_type
     
     g=sns.JointGrid(  height=10,ratio=5)
-    sns.scatterplot(x=x, y=y, hue=hue,size=data.log_fpeak, sizes=(10,200), ax=g.ax_joint)
-    sns.histplot(x=x, hue=hue, ax=g.ax_marg_x, element='step', kde=True)
-    sns.histplot(y=y, hue=hue, ax=g.ax_marg_y, element='step', kde=True)
+    sns.scatterplot(x=x, y=y, **hue_kw(data), **size_kw(data),  ax=g.ax_joint)
+    sns.histplot(x=x, **hue_kw(data), ax=g.ax_marg_x, element='step', kde=True)
+    sns.histplot(y=y, **hue_kw(data), ax=g.ax_marg_y, element='step', kde=True)
     for ax in (g.ax_joint, g.ax_marg_x):
         ax.set(xlim=(180,-180), xticks=np.arange(180,-181, -45))
     for ax in (g.ax_joint, g.ax_marg_y):
@@ -193,14 +194,16 @@ def show_positions(data, fignum=None):
         for ax in (g.ax_marg_x, g.ax_marg_y):
             ax.get_legend().set_visible(False)
 
-    g.ax_joint.plot([-45,-45,45,45,-45], np.sin(np.radians([2,15,15,2,2])), ls='--', color="0.3")
+    # g.ax_joint.plot([-45,-45,45,45,-45], np.sin(np.radians([0,15,15,0,0])), ls='--', color="0.3")
+    SpecialCut().b_vs_l(g.ax_joint)
    
     show(plt.gcf(), fignum=fignum, caption='')
     show(r"""
-        Here we see that the pulsar-like unids are found at all latituedes and longitudes,
+        Here we see that the pulsar-like unids are found at all latitudes and longitudes,
          but there is a concentration for $|l|<45^\circ$ and $2^\circ<|b|<15^\circ$: we select those in
          this region indicated by the dashed line.
          """)
+
 
 def show_flux_vs_b(data):
     show(rf"""### Flux $vs.$ latitude
@@ -234,17 +237,6 @@ def describe(data):
     show(t)
     return data    
 
-def subset(data, quiet=False):
-    df = data.query('-45<glon<45 & 0.017<abs_sin_b<0.259') #-0.523<log_epeak<0.523 &
-
-    if not quiet:
-        show(rf"""
-        Position selection: $-45^\circ < l < 45^\circ$ and  $1^\circ < |b| < 15^\circ$
-        
-        This results in {len(df)} sources, of which the types are: 
-        """)  
-        describe(df) 
-    return df
 
 def show_peak_properties(data, select=describe, 
                         heading="""## Spectral properties """):
@@ -255,7 +247,7 @@ def show_peak_properties(data, select=describe,
 
     (sns.JointGrid(data if select is None else select(data),
                    x='log_epeak', y='log_fpeak', 
-                   hue='pulsar_type', hue_order='RPP unid MSP'.split(),  
+                   hue='pulsar_type', hue_order='young unid MSP'.split(),  
                    height=8, ratio=3)
      .plot_joint(sns.scatterplot, s=100, alpha=0.8)
      .plot_marginals(sns.histplot, element='step', kde=True)
@@ -264,42 +256,32 @@ def show_peak_properties(data, select=describe,
     )
     show(plt.gcf(), )
 
+def hue_kw(data):
+    return dict(
+        palette = dict(predicted='salmon', MSP='limegreen', young='cornflowerblue'),
+        hue = data.pulsar_type,
+        hue_order='young MSP predicted'.split(),
+        )
+def size_kw(data):
+    return dict(size=data.log_fpeak, sizes=(10,200))
+
 def curvature_vs_fpeak(data, fignum=None):
     show(f"""### Curvature *vs.* $F_p$
     """)
-    y,x,hue = data.curvature, data.log_fpeak, data.pulsar_type
+    y,x= data.curvature, data.log_fpeak 
     g=sns.JointGrid(  height=8,ratio=5)
-    sns.scatterplot(x=x, y=y, hue=hue,size=data.log_fpeak, sizes=(10,200), ax=g.ax_joint)
-    sns.histplot(x=x, hue=hue, ax=g.ax_marg_x, element='step', kde=True)
-    sns.histplot(y=y, hue=hue, ax=g.ax_marg_y, element='step', kde=True)
+    sns.scatterplot(x=x, y=y, **hue_kw(data), **size_kw(data), ax=g.ax_joint)
+    sns.histplot(x=x, **hue_kw(data), ax=g.ax_marg_x, element='step', kde=True)
+    sns.histplot(y=y, **hue_kw(data), ax=g.ax_marg_y, element='step', kde=True)
     
     for ax in (g.ax_joint, g.ax_marg_x):
         ax.set(xticks=np.arange(0,5.1,2), xticklabels=' 1 100 $10^4$'.split(),
-              xlim=(-1.5,5))
+            xlim=(-1.5,5))
     g.set_axis_labels(ylabel='Curvature', xlabel=r'$F_p$ (eV cm-2 s-1)')
     for ax in (g.ax_marg_x, g.ax_marg_y):
         ax.get_legend().set_visible(False)
     show(g.ax_joint.figure, fignum=fignum, caption='')
 
-def sed_plots(data):
-    show(f"""## SED plots 
-    These are SED plots for the pulsar-like unids in the selected region.
-    """)
-    
-    cols = 'pulsar_type ts nbb var glon glat log_fpeak log_epeak curvature sgu uw_name'.split() 
-    # df = data.query('association=="unid" & prediction=="psr" & -45<glon<45 & abs_sin_b<0.2').sort_values('log_fpeak')
-    df = subset(data).query('pulsar_type=="unid"')
-    
-    
-    
-    issgu = df[df.sgu==True]; len(issgu)
-    
-    show(f""" SGUs: {len(issgu)}""")
-    sedplotgrid(issgu[cols], nrows=19, ncols=10,  figsize=(10, 19/2))
-    
-    notsgu= df[df.sgu==False]; 
-    show(f""" Not SGUs: {len(notsgu)}""")
-    sedplotgrid(notsgu[cols], nrows=13, ncols=10, )
 
 def spectral_correlations(data, fignum=None):
     
@@ -310,73 +292,123 @@ def spectral_correlations(data, fignum=None):
          """)
     fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(15,7), sharey=True, 
                                  gridspec_kw=dict(wspace=0.05))
-    sns.scatterplot(data, y='curvature',x='log_epeak', hue='pulsar_type', alpha=0.8,
-                    size='log_fpeak', sizes=(10,200),ax=ax1);
-    sns.kdeplot(data, y='curvature',x='log_epeak', hue='pulsar_type', ax=ax1);
+    sns.scatterplot(data, y='curvature',x='log_epeak', **hue_kw(data), alpha=0.8,
+                   **size_kw(data), ax=ax1);
+    sns.kdeplot(data, y='curvature',x='log_epeak', **hue_kw(data), ax=ax1);
     ax1.set(xticks=[-1,0,1], xticklabels='0.1 1 10'.split(), xlabel=r'$E_p$ (GeV)',
-           xlim=(-1.2,1), yticks=np.arange(0,1.1,0.25))
+           xlim=(-1.2,1), yticks=np.arange(0,1.1,0.25), ylabel='Curvature $d_P$')
     
     sns.scatterplot(data, y='curvature',x='log_fpeak', hue='pulsar_type',alpha=0.8,
                     size='log_fpeak', sizes=(10,200),ax=ax2);
-    sns.kdeplot(data, y='curvature',x='log_fpeak', hue='pulsar_type',ax=ax2)
+    sns.kdeplot(data, y='curvature',x='log_fpeak', **hue_kw(data),ax=ax2)
     ax2.set(xlabel=r'$F_p$ (eV cm-2 s-1)', xticks=[0,2,4,6], 
             xticklabels='1 100 $10^4$ $10^6$'.split(), xlim=(-1.9,5.5), ylim=(-0.1,1.1));
     ax2.get_legend().set_visible(False)
-    ax2.plot([-1.5,np.log10(60),np.log10(60),], [0.5,0.5,1.2,],ls='--', color='0.3')
-    show(fig, fignum=fignum, 
-         caption="""Spectral correlation parameter vs. the peak energy $E_p$' on the left, and flux $F_p$ on the right.
-         The latter shows the high-correlation region selected to enhance the selection of the enhancement of the predicted category below.""")
 
+    SpecialCut().curvature_vs_fpeak(ax2)
+    
+    show(fig, fignum=fignum, 
+         caption="""Spectral curvature $d_p$  vs. the peak energy $E_p$ on the left, and flux $F_p$ on the right.
+         The latter shows the high-correlation region selected to enhance the selection of the enhancement of the predicted category below.""")
 
 def fpeak_vs_sinb(data, fignum=None):
     show(r"""###  $F_p$ vs $|\sin(b)|$""")
-    fig, ax = plt.subplots(figsize=(10,8))
-    kw = dict(data=data, x='abs_sin_b', y='log_fpeak', hue='pulsar_type', ax=ax)
-    sns.scatterplot(alpha=0.8,  size='log_fpeak', sizes=(10,200),    **kw)
+    fig, ax = plt.subplots(figsize=(10,7))
+    kw = dict(data=data, x='abs_sin_b', y='log_fpeak',**hue_kw(data), ax=ax)
+    sns.scatterplot(alpha=0.8,  **size_kw(data), **kw)
     sns.kdeplot(**kw)
     ax.set(xlabel=f'$|\sin(b)|$', xlim=(-0.02,1.0), 
            ylabel='$F_p$ (eV cm-2 s-1)', ylim=(-1.5,3.9),
            yticks=[0,2,], yticklabels='1 100'.split(), );
-    a,b = [np.sin(np.radians(x)) for x in (2,15)] 
-    c = np.log10(60)
-    ax.plot([a,a,b,b],[-2,c,c,-2], ls='--', color='0.3')
+    
+    SpecialCut().b_vs_fpeak(ax=ax)
+
     show(fig, fignum=fignum, 
          caption="""Scatter plot of $F_p$ vs. $|sin(b)|$ with KDE contours. The region inside the dashed line
          is the subset selection criterion.
          """)
 
-def position_cut(data, quiet=False, l_lim=(-45,45), b_lim =(2,15)):
-    # df = data.query('-45<glon<45 & 0.034<abs_sin_b<0.259') #-0.523<log_epeak<0.523 &
-    l, abs_b = data.glon, np.abs(data.glat)
-    df = data[ (l>l_lim[0]) & (l<l_lim[1]) & (abs_b>b_lim[0]) & (abs_b < b_lim[1])]
-    if not quiet:
-        show(rf"""
-        Position cut:  $l$ in {l_lim} and $|b|$ in {b_lim}. 
+
+from dataclasses import dataclass
+@dataclass
+class SpecialCut:
+    """Manage selection of a subset of sources
+    """
+    cmin:float= 1.33   # minimum curvature
+    fpeak_max:float= 50 # maximum F_p
+    b_lim :tuple= (0,15) # limits on |b|
+    l_lim:tuple = (-45,45) # limits on l
+    quiet:bool=False
+    plot_kw = dict(ls='--', color="0.3")
+    
+    def position_cut(self, data):
+        l_lim, b_lim = self.l_lim, self.b_lim
+        l, abs_b = data.glon, np.abs(data.glat)
+        df = data[ (l>l_lim[0]) & (l<l_lim[1]) & (abs_b>b_lim[0]) & (abs_b < b_lim[1])]
+        if not self.quiet:
+            show(rf"""Position cut:  $l$ in {l_lim} and $|b|$ in {b_lim}""" )
+            describe(df) 
+        return df
         
-        This results in {len(df)} sources, of which the types are: 
-        """)  
-        describe(df) 
-    return df
-def spectral_cut(data, quiet=False, cmin=0.5, fpeak_max=60):
-    df = data[(data.curvature>cmin) & (data.log_fpeak<np.log10(fpeak_max))]
-    if not quiet:
-        show(f"""Spectral cut: $F_p$ < {fpeak_max} and curvature>{cmin} 
-        """)
-    describe(df)
-    return df 
+    def spectral_cut(self, data):
+        cmin, fpeak_max = self.cmin, self.fpeak_max
+        df = data[(data.curvature>cmin) & (data.log_fpeak<np.log10(fpeak_max))]
+        if not self.quiet:
+            show(f"""Spectral cut: $F_p$ < {fpeak_max} and curvature>{cmin} """)
+            describe(df)
+        return df 
+
+    def __call__(self, data):
+        return self.spectral_cut( self.position_cut( data))
+    
+    #----------- plot boundaries ------------
+    def b_vs_fpeak(self, ax):
+        a,b = [np.sin(np.radians(x)) for x in self.b_lim] 
+        c = np.log10(self.fpeak_max)
+        ax.plot([a,b,b],[c,c,-2], **self.plot_kw)
+
+    def curvature_vs_fpeak(self, ax):
+        ax.plot([-1.5,np.log10(self.fpeak_max),np.log10(self.fpeak_max),], 
+                [self.cmin,self.cmin,1.2,], **self.plot_kw)
+        
+    def b_vs_l(self, ax):
+        a,b,c,d =  self.l_lim+ self.b_lim        
+        ax.plot([a,a,b,b,a], np.sin(np.radians([c,d,d,c,c])), **self.plot_kw)
+
 def special(data, fignum=None):
     show(f"""## Selection of a special region
     Here we select a subset of the pulsar-predictions to enhance this signal.      
     """)
-    special = spectral_cut(position_cut(data))
-    cols = 'ts glat glon log_fpeak log_epeak curvature sgu uw_name'.split()
-    df = special.query('pulsar_type=="predicted"')[cols].sort_values('ts', 
+    
+    df =  SpecialCut()(data)
+    df['Fp'] = 10**df.log_fpeak
+    df['Ep'] = 10**df.log_epeak
+    pulsar_type= df.pulsar_type
+    cols = 'ts r95 glat glon Fp Ep curvature sgu uw_name'.split()
+    df = df[cols]
+    df_pred = df.loc[pulsar_type=='predicted'].sort_values('ts', 
                                                         ascending=False)
-    show("""### SED plots 
-         
+    show(f"""Note that this includes {sum(df.sgu)} SGU-tagged sources. """)
+    show("""### Predicted pulsar SED plots          
          """)
-    sedplotgrid(df, fignum=fignum)
-    return df
+    sedplotgrid(df_pred, fignum=fignum)
+    show("""### Acutal pulsar SED plots""")
+    sedplotgrid(df[pulsar_type!="predicted"])
+    return df_pred
+
+def high_curv_pos(data):  
+    df = data.query('curvature>1.2 & log_fpeak<1.6 & -30<glat<30')  
+    show(f"""## Positions of {len(df)} high-curvature sources
+    """)
+    fig, ax = plt.subplots(figsize=(10,8))
+    ax.axhline(0, color='0.8'); ax.axvline(0, color='0.8');
+    sns.scatterplot(df, x='glon', y=data.glat.clip(-30,30), 
+                    hue='pulsar_type', hue_order='young MSP predicted'.split(),
+                   size='log_fpeak',legend='brief')
+    ax.set(xlim=(180,-180),xticks=np.arange(180,-181,-90), ylim=(-30,30));
+
+    plt.legend( fontsize=12, loc='lower left',bbox_to_anchor=(0.85,0.6), frameon=True)
+    show(fig);
 
 def main():
     import warnings
@@ -387,7 +419,7 @@ def main():
     corner(data, fignum=1)
     show(f"""
     ## Three source categories 
-    There are two identified pulsar categories: young, rotation-powered (RPP), and those spun up by a
+    There are two identified pulsar categories: young, rotation-powered (young), and those spun up by a
     companion star to millisecond periods, (MSP). These were combined for the classification process, but since
     there are small spectral and large position difference, we distinguish them below. The unassociared sources
     predicted to be pulsars represent a third category, labeled "predicted" below.  Their numbers:           
