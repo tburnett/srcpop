@@ -31,9 +31,6 @@ def introduction(npsr=312, nunid=762, nsgu=None):
         **A)** The unid's predicted to be pulsars are indeed undetected pulsars <br>
         **B)** There is a new, unknown galactic population of gamma-ray sources that only *look* like pulsars
          
-        Perhaps applicable philosophical principles are Occam's razor and the [duck test](https://en.wikipedia.org/wiki/Duck_test). 
-        Both favor option A. But acceptance of this hypothesis requires that we understand how such a 
-        large number of pulsars would be easily detected by the LAT, yet not found in radio searches so far.
         """)
 
 class Pulsars:
@@ -176,7 +173,7 @@ def show_positions(data, fignum=None):
     show(f"""### Source positions
     We saw in Fig. 1 that the position distributions for the pulsar-like unids
     differed from the true pulsars. Here we expand that correlation plot, 
-    distinguishing the young, rotationaly-powered pulsars ("young") from MSPs ("MSP").
+    distinguishing the young, rotationally-powered pulsars ("young") from MSPs ("MSP").
     """)
     x,y,hue = data.glon, data.abs_sin_b, data.pulsar_type
     
@@ -228,7 +225,7 @@ def show_flux_vs_curvature(data):
                    )
     show(ax.figure, fignum=4, caption='')
     show(f"""Clearly there is a dramatic dependence, weaker sources having 
-    narrower SED profiles. Is this really a source property, or is it a measurment 
+    narrower SED profiles. Is this really a source property, or is it a measurement 
     systematic?
     """)
 
@@ -309,7 +306,8 @@ def spectral_correlations(data, fignum=None):
     
     show(fig, fignum=fignum, 
          caption="""Spectral curvature $d_p$  vs. the peak energy $E_p$ on the left, and flux $F_p$ on the right.
-         The latter shows the high-correlation region selected to enhance the selection of the enhancement of the predicted category below.""")
+         The latter shows the high-correlation region selected to enhance the selection of the enhancement of the
+           predicted category below.""")
 
 def fpeak_vs_sinb(data, fignum=None):
     show(r"""###  $F_p$ vs $|\sin(b)|$""")
@@ -392,7 +390,7 @@ def special(data, fignum=None):
     show("""### Predicted pulsar SED plots          
          """)
     sedplotgrid(df_pred, fignum=fignum)
-    show("""### Acutal pulsar SED plots""")
+    show("""### Actual pulsar SED plots""")
     sedplotgrid(df[pulsar_type!="predicted"])
     return df_pred
 
@@ -421,7 +419,7 @@ def main():
     ## Three source categories 
     There are two identified pulsar categories: young, rotation-powered (young), and those spun up by a
     companion star to millisecond periods, (MSP). These were combined for the classification process, but since
-    there are small spectral and large position difference, we distinguish them below. The unassociared sources
+    there are small spectral and large position difference, we distinguish them below. The unassociated sources
     predicted to be pulsars represent a third category, labeled "predicted" below.  Their numbers:           
     """)
     describe(data)

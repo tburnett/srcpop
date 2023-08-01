@@ -10,7 +10,7 @@ class ML(FermiSources):
         show('# '+title)
         show_date()
         super().__init__(*pars, **kwargs)
-        fcat = Fermi4FGL()
+        fcat = self.fermicat = Fermi4FGL()
         self.df.loc[:,'sgu'] = fcat['flags'].apply(lambda f: f[14])
         self.df.loc[:,'fcat_epeak'] = fcat.specfunc.apply(lambda f: f.sedfun.peak)
         self.df.loc[:,'fcat_curvature']= 2 * fcat.specfunc.apply(lambda f: f.curvature())
@@ -64,35 +64,30 @@ class ML(FermiSources):
              caption='Log nbb vs log variability. Dashed lines show thresholds.')
         show(f"""**➜** Choose `nbb` since it detects BL Lac variability missed by 4FGL
         """)
+
     def scatter_train_predict(self,  x,y, fignum=None, caption='', target='unid', **kwargs):
         
-        fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,6),
+        fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(15,6),
                                     sharex=True,sharey=True,
-                                    gridspec_kw=dict(wspace=0.2))
+                                    gridspec_kw=dict(wspace=0.1))
 
-        target_names = self.mlspec.target_names
+        size_kw = dict(size='log_eflux', sizes=(20,150),size_norm=(-12,-10))
+        hue_kw = lambda what: dict(hue_order=self.mlspec.target_names, hue =what)
         df = self.df
 
-        kw = dict()
-        kw.update(kwargs)
-        ax1.set(**kw)
+        ax1.set(**kwargs)
         ax1.set_title('Training')
         ax2.set_title(f'{target} prediction')
-        sns.scatterplot(self.train_df, x=x, y=y, 
-                        hue_order=target_names, hue='association',
-                        size='log_eflux', sizes=(20,150),size_norm=(-12,-10),
-                        ax=ax1)
-        ax1.legend(loc='upper right')
+        sns.scatterplot(self.train_df, x=x, y=y,  **hue_kw('association'), **size_kw,  ax=ax1)
+        ax1.legend(loc='upper right', fontsize=12)
 
         target_df = df.query(f'association=="{target}"')
         assert len(target_df)>0, f'Failed to find target {target}'
-        sns.scatterplot(target_df, x=x, y=y,  
-                        hue_order=target_names, hue='prediction',
-                        size='log_eflux', sizes=(20,150),size_norm=(-12,-10),
-                        ax=ax2)
-        ax2.legend(loc='upper right')
+        sns.scatterplot(target_df, x=x, y=y,  **hue_kw('prediction'), **size_kw,   ax=ax2)
+        ax2.legend(loc='upper right',fontsize=12)
+        ax2.set(xlabel=ax1.get_xlabel())
         
-        fig.text(0.51, 0.5, '⇨', fontsize=50, ha='center')
+        fig.text(0.514, 0.5, '⇨', fontsize=50, ha='center')
         show(fig, fignum=fignum, caption=caption)
         
     def pairplot(self, fignum=None):
@@ -174,7 +169,7 @@ class ML(FermiSources):
 def main():
 
     fn = FigNum()
-    sns.set_context('talk')
+    # sns.set_context('talk')
     self =  ML(mlspec=MLspec())
     self.outline()
     self.show_data()
@@ -191,4 +186,8 @@ import sys
 if len(sys.argv)>1:
     if sys.argv[1]=='main':
         main()
+    elif sys.argv[1]=='setup':
+        self =  ML(title='ML doc development')
+        self.train_predict()
+
     

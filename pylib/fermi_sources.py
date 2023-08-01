@@ -18,6 +18,8 @@ from dataclasses import dataclass
 class FigNum:
     n = 0
     @property
+    def current(self): return self.n
+    @property
     def next(self):
         self.n +=1
         return self.n
@@ -87,7 +89,7 @@ class FermiSources:
         df.loc[:,'log_epeak'] = specfun.apply(lambda f: f.sedfun.peak)
         df['log_fpeak'] = specfun.apply(lambda f: f.fpeak)
 
-        self.mlspec = MLspec() if mlspec is None else mlspec  # default for classificaiotn
+        self.mlspec = MLspec() if mlspec is None else mlspec  # default for classification
 
     def show_data(self):
         """ Make a summary of the """
@@ -121,7 +123,7 @@ class FermiSources:
         show(f"""Note that the number of pulsar+blazars (including bcu) is {100*id/(id+t.other):.0f}% of the total
             associated.""")
         
-    def show_positions(self, xds,  caption=None):
+    def show_positions(self, xds, figsize=(12,12), fignum=None, caption=None):
         """
         * xds - a DataFrame with indexed wiht 4FGL names (like a dataset from here) and a `log_flux` column
 
@@ -142,12 +144,12 @@ class FermiSources:
         except Exception as msg:
             print(f"""Fail to get source positions: {msg} """, file=sys.stderr)
             return
-        afig = AitoffFigure(figsize=(12,12))
+        afig = AitoffFigure(figsize=figsize)
         afig.ax.set_facecolor('lavender')
         scat = afig.scatter(xpos, c=xds.log_eflux);
         cb = plt.colorbar(scat,  shrink=0.35,
                         ticks=[-12,-11,-10], label='log Eflux');
-        show(afig.fig, caption=caption)
+        show(afig.fig, fignum=fignum, caption=caption)
     
 
 
@@ -319,12 +321,12 @@ class FermiSources:
                             **epeak_kw('x'),
                             yticks=[0,0.5,1,1.5,2]
                             )
-        show(f"""Note that the curvature distribution is shifted to higher values in for the unid 
+        show(f"""Note that the curvature distribution is shifted to higher values for the unid 
         data.
         """)
 
         show(f"""### Curvature vs. $F_p$
-            Check the dependence of the curvature on the flux.
+            Check the dependence of the curvature on the peak flux.
             """)
 
         self.scatter_train_predict( x='log_fpeak', y='curvature',fignum=fignum+1 if fignum is not None else None,
