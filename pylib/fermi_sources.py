@@ -7,6 +7,8 @@ import pandas as pd
 
 from astropy.coordinates import SkyCoord
 from utilities.ipynb_docgen import capture_hide, show
+from utilities.catalogs import UWcat, Fermi4FGL
+
 import seaborn as sns
 sns.set_theme(font_scale=1.25)
 plt.rcParams['font.size']=14
@@ -65,7 +67,12 @@ class FermiSources:
                 selection='delta<0.25 & curvature<2.1'):
         
         t = pd.read_csv(datafile, index_col=0 )
+        with capture_hide('setup output') as setup_output:
+            self.fermicat = Fermi4FGL(); 
+            self.uwcat = UWcat().set_index('jname')
         t.curvature *=2 # temporary fix to be "spectral curvature" here
+        # look up the beta uncertainty from the UW cat  
+        t['d_unc'] = 2*self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
 
         self.df = df = t.query(selection).copy()
         show(f"""Read {len(t)} source entries from `{datafile}`, selected {len(df)} with criteria '{selection}'""")  
@@ -316,7 +323,7 @@ class FermiSources:
 
 
         self.scatter_train_predict(x='log_epeak', y='curvature', fignum=fignum,
-                caption=f"""Curvature vs peak energy for the training set on the
+                caption=f"""Curvature vs $E_p$ for the training set on the
             left, the unid on the right.""",
                             **epeak_kw('x'),
                             yticks=[0,0.5,1,1.5,2]
@@ -330,7 +337,7 @@ class FermiSources:
             """)
 
         self.scatter_train_predict( x='log_fpeak', y='curvature',fignum=fignum+1 if fignum is not None else None,
-                caption=f"""Curvature vs eflux for associated sources on the
+                caption=f"""Curvature vs $F_p$ for associated sources on the
             left, the unid on the right.""",
                         **fpeak_kw('x'),
                           yticks=[0,0.5,1,1.5,2])
@@ -392,14 +399,15 @@ class SEDplotter:
             uwf = self.uw.loc[src.uw_name,'specfunc']
         except:
             uwf = None
-        try:
-            # fcatf =  self.fcat.loc[src.name,'specfunc']
-            fcatf = self.fgl_plec(src.name) if self.plec else \
-                    self.fcat.loc[src.name,'specfunc']
+
+        # fcatf =  self.fcat.loc[src.name,'specfunc']
+        name = src.name
+        if name not in self.fcat.index: name+='c' # cloud ??
+        fcatf = self.fgl_plec(name) if self.plec else \
+                self.fcat.loc[name,'specfunc']
             
-        except:
-            raise
-            fcatf = None
+        # except:
+        #     fcatf = None
         return uwf, fcatf
         
     def plots(self, src, ax=None, **kwargs):
@@ -407,8 +415,10 @@ class SEDplotter:
         kw = dict(xlabel='', ylabel=''); kw.update(kwargs)
 
         for f, pkw in zip(self.funcs(src), self.plot_kw):
-            if callable(f):
-                f.sed_plot(ax, plot_kw=pkw) 
+            try:
+                if callable(f):   f.sed_plot(ax, plot_kw=pkw)
+            except:
+                ax.text(0.4,0.5, 'Failed', color='red', transform=ax.transAxes ) 
         ax.set(**kw)
 
 

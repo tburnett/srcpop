@@ -156,6 +156,30 @@ class ML(FermiSources):
     
         show("""We chose the first, a Support Vector Classifier""")
     
+    def curvature_epeak_flux(self, fignum=None):
+        show(f"""### Curvature vs $E_p$: compare training and unid sets""")
+
+
+        self.scatter_train_predict(x='log_epeak', y='curvature', fignum=fignum,
+                caption=f"""Curvature vs $E_p$ for the training set on the
+            left, the unid on the right.""",
+                            **epeak_kw('x'),
+                            yticks=[0,0.5,1,1.5,2]
+                            )
+        show(f"""Note that the curvature distribution is shifted to higher values for the unid 
+        data.
+        """)
+
+        show(f"""### Curvature vs. $F_p$
+            Check the dependence of the curvature on the peak flux.
+            """)
+
+        self.scatter_train_predict( x='log_fpeak', y='curvature',fignum=fignum+1 if fignum is not None else None,
+                caption=f"""Curvature vs $F_p$ for associated sources on the
+            left, the unid on the right.""",
+                        **fpeak_kw('x'),
+                          yticks=[0,0.5,1,1.5,2])
+    
     def show_notes(self):
         show("""
             ## Notes, todos:

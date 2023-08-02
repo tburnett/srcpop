@@ -1,20 +1,20 @@
 from pylib.machine_learning import *
 
 class Curvature(ML):
-    def __init__(self, title='Spectral Curvature'):
+    def __init__(self, title='Evidence for a new gamma-ray source class'):
         from utilities.catalogs import UWcat, Fermi4FGL
 
-        with capture_hide('setup output') as setup_output:
-            super().__init__(title=title)
-            self.fermicat = Fermi4FGL(); 
-            self.uwcat = UWcat().set_index('jname')
-            self.train_predict(show_confusion=False)
+        # with capture_hide('setup output') as setup_output:
+        super().__init__(title=title)
+            # self.fermicat = Fermi4FGL(); 
+            # self.uwcat = UWcat().set_index('jname')
+        self.train_predict(show_confusion=False)
 
     def intro(self):
         show(f"""
             It is clear from the [ML studies](machine_learning.ipynb) that the spectral curvature plays an important role.
              In this section we study this variable in detail. We have been using the UW determination, so here we look at
-             how it was measured for the UW alll-sky analysis as well as the public 4FGL-DR4. 
+             how it was measured for the UW all-sky analysis as well as the public 4FGL-DR4. 
              """)
 
     def distributions(self, fignum=1):
@@ -41,7 +41,7 @@ class Curvature(ML):
             Associated sources, according to association type. Lower panel: ML predictions for the  unassociated
             sources. The dashed line, at curvature=4/3, represents the theoretical upper limit for
             synchrotron curvature radiation.""")
-        show(f"""An initial assumption might be that unassociated sources are one of the three major types, 
+        show(f"""An assumption might be that unassociated sources are one of the three major types, 
             which account for 95% of all associated sources. However, the shapes of the predicted distributions 
             are not consistent with a simple linear combination of the associated counterparts. This is 
             dramatically true for the pulsars, which we expect to be limited by the physical bound of 4/3.
@@ -49,22 +49,21 @@ class Curvature(ML):
             all unid sources with curvature>4/3. 
             """)
         self.high_curv_pos(fignum=fignum+1 if fignum is not None else None )
-        show(f"""The galactic positions and strong correlation of flux with latitude makes it clear that these are mosthly 
+        show(f"""The galactic positions and strong correlation of flux with latitude makes it clear that these are mostly 
              of galactic origin. 
              """)
         
     def high_curv_pos(self, fignum=None):  
-        df = self.df.query('curvature>1.33 & log_fpeak<1.6')
+        df = self.df.query('curvature>1.33333 &  nbb<4')
         unid = df.association=='unid' 
         psr = df.association=='psr'                  
         show(f"""### Positions of {sum(unid)} curvature>4/3 unassociated sources.
         Since only {sum(psr)} of the actual pulsars satisfy this, there should be few undetected pulsars.
-     .
         """)
         self.show_positions(df[unid], fignum=fignum, 
                             caption="""Aitoff display of the selected source positions.
         """)
-        
+
     def measurements(self, fignum=None):
         show(f"""## Curvature measurement details
         ### Role of measurement error
@@ -92,9 +91,11 @@ class Curvature(ML):
     def uw_measurements(self, ax=None, fignum=None):
         
         df = self.df.copy().set_index('uw_name')
-        df['d_unc'] = self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
-        fig, ax1 = plt.subplots(figsize=(8,8)) if ax is None else (ax.figure, ax)
-        sns.scatterplot(df,ax=ax1, x='curvature', y=df.d_unc.clip(0,1));
+        df['d_unc'] = 2*self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
+        fig, ax1 = plt.subplots(figsize=(8,6)) if ax is None else (ax.figure, ax)
+        df['log TS'] = np.log10(df.ts)
+        sns.scatterplot(df,ax=ax1, x='curvature', y=df.d_unc.clip(0,1.5),
+                    size='log TS', sizes=(10,200));
         if ax1 is None: show(fig, fignum=fignum, caption='')
         y = df.d_unc
         show(f""" * UW: The fit procedure optimized curvatures individually for each source, limiting the value to 2. 
