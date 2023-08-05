@@ -194,13 +194,14 @@ def main():
 
     fn = FigNum()
     # sns.set_context('talk')
-    self =  ML(mlspec=MLspec())
+    self =  ML(mlspec=MLspec(
+        features='log_var log_fpeak log_epeak curvature'.split()))
     self.outline()
     self.show_data()
     self.compare_variabilities(fignum=fn.next)
     self.pairplot(fignum=fn.next)
     self.classifier_evaluation()
-    self.train_predict()
+    self.train_predict(show_confusion=True)
     self.show_prediction_association(fignum=fn.next)
     self.curvature_epeak_flux(fignum=fn.next); fn.next
     self.show_sgus(fignum=fn.next)

@@ -427,10 +427,7 @@ def main():
     spectral_correlations(data, fignum=3)
     fpeak_vs_sinb(data, fignum=4)          
     df = special(data, fignum=5)
-    df.index.name = '4FGL-DR4'
-    filename = 'files/psr_candidates.csv'
-    df.to_csv(filename, float_format='%.3f')
-    show(f"""Wrote the selected pulsar candidates, sorted by TS, to `{filename}` with {len(df)} entries.""")
+
 
 #-------------------------------------------------------------------------------    
 if len(sys.argv)>1:

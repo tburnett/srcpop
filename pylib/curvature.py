@@ -102,7 +102,7 @@ class Curvature(ML):
         There were some sources for which the fit was not done, or apparently failed.
         Of the {len(y)} sources there were {sum(y==0)} with the error set to zero and  {sum(y>1.)} set to 2. 
         """)
-   
+    
     def fgl_measurements(self, ax=None, fignum=None):
         show(r"""* 4FGL: The log-parabola curvature parameter $\beta$ (which is 1/2 the spectral curvature) 
         was optimized along with the other spectral parameters, but, new for DR4, the likelihood included a
@@ -222,6 +222,36 @@ class Curvature(ML):
         Then, assuming that the distribution of blazars in the unid is uniform, the net galactic 
         unids in planar region is {c-d -(b-a)}.
         This would also contain undetected pulsars.""")
+
+    def sed_plots(self, fignum=None, ncols=15, height=0.5):
+        show(f"""## "Golden" HCU SED plots, sorted by TS""")
+        df = self.df.query('curvature>1.33333 & nbb<4 & association=="unid"').copy()
+        df.index.name = '4FGL-DR4'
+        df['Fp'] = 10**df.log_fpeak
+        df['Ep'] = 10**df.log_epeak
+        cols = 'ts r95 glat glon Fp Ep curvature nbb sgu uw_name'.split()
+        dfx = df[cols].sort_values('ts',ascending=False)
+        sedplotgrid(dfx[cols], fignum=None, ncols=ncols, height=height)
+        show(f"""There are {sum(df.sgu==True)} SGUs in this list.""")
+
+    def to_csv(self, filename='files/hcu_candidates.csv'):
+        df = self.df.query('curvature>1.33333 &  nbb<4 & association=="unid"')
+        df.to_csv(filename, float_format='%.3f')
+        show(f"""Wrote (golden) HCU sources, sorted by TS, to `{filename}` with {len(df)} entries.""")
+
+    def venn(self,ax=None, ts_cut=None):
+        """ Plot shown in talk."""
+        from matplotlib_venn import venn3
+        fig, ax =plt.subplots(figsize=(6,6)) if ax is None else (ax.figure, ax)
+        q = 'nbb<4'
+        if ts_cut is not None: q += ' & ts>ts_cut'  
+        all_df = self.df.query(q)
+        all=set(all_df.index)
+        unid = set(all_df.query('association=="unid"').index)
+        hcu = set(all_df.query('curvature>1.333').index)
+        venn3([all, unid, hcu], (f'TS>{ts_cut}' if ts_cut is not None else 'Constant', 'UNID', 'High Curvature'),
+            ax=ax, alpha=0.6, set_colors='g r violet'.split());
+        show(fig)
 
     def summary(self):
         show("""## Summary

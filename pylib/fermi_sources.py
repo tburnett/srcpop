@@ -44,7 +44,7 @@ def show_date():
 
 @dataclass
 class MLspec:
-    features: tuple = tuple("""log_nbb log_fpeak log_epeak curvature """.split())
+    features: tuple = tuple("""log_var log_fpeak log_epeak curvature """.split())
 
     target : str ='association'
     target_names:tuple = tuple('bll fsrq psr'.split())
@@ -130,9 +130,10 @@ class FermiSources:
         show(f"""Note that the number of pulsar+blazars (including bcu) is {100*id/(id+t.other):.0f}% of the total
             associated.""")
         
-    def show_positions(self, xds, figsize=(12,12), fignum=None, caption=None):
+    def show_positions(self, xds, figsize=(12,12), title=None, fignum=None, caption=None):
         """
-        * xds - a DataFrame with indexed wiht 4FGL names (like a dataset from here) and a `log_flux` column
+        * xds - a DataFrame indexed with 4FGL names (like a dataset from here) and 
+        columns `glon`, `glat` and `log_flux`
 
         Show an Aitoff plot with the 
         """
@@ -145,14 +146,12 @@ class FermiSources:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fxn()
-
-        try:
-            xpos = SkyCoord(pd.Series(self.skycoord, index=self.df.index)[xds.index].values)
-        except Exception as msg:
-            print(f"""Fail to get source positions: {msg} """, file=sys.stderr)
-            return
+        assert len(xds)>0, 'No data to plot'
+        xpos = SkyCoord( *xds['glon glat'.split()].values.T, unit='deg', frame='galactic')
         afig = AitoffFigure(figsize=figsize)
         afig.ax.set_facecolor('lavender')
+        if title is not None:
+            afig.ax.set(title=title)
         scat = afig.scatter(xpos, c=xds.log_eflux);
         cb = plt.colorbar(scat,  shrink=0.35,
                         ticks=[-12,-11,-10], label='log Eflux');
