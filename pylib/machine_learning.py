@@ -10,7 +10,7 @@ class ML(FermiSources):
         show('# '+title)
         show_date()
         super().__init__(*pars, **kwargs)
-        fcat = self.fermicat = Fermi4FGL()
+        fcat = self.fermicat #= Fermi4FGL()
         self.df.loc[:,'sgu'] = fcat['flags'].apply(lambda f: f[14])
         self.df.loc[:,'fcat_epeak'] = fcat.specfunc.apply(lambda f: f.sedfun.peak)
         self.df.loc[:,'fcat_curvature']= 2 * fcat.specfunc.apply(lambda f: f.curvature())
@@ -19,11 +19,11 @@ class ML(FermiSources):
     def outline(self):
         show(f"""
             ## Outline
-            **Goal: use predictive artificial inteliegence to classify source types of the unid's**
+            **Goal: use predictive artificial intelligence to classify source types of the unid's**
             
             Procedure:
             * Choose the standard `scikit-learn` ML implementation 
-            * Choose "featues"
+            * Choose "features"
             * Evaluate classifier options, select one
             * Validate, perhaps adjust feature set
             * Apply to the unid's (including "SGU"s)

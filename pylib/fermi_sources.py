@@ -67,15 +67,18 @@ class FermiSources:
                 selection='delta<0.25 & curvature<2.1'):
         
         t = pd.read_csv(datafile, index_col=0 )
-        with capture_hide('setup output') as setup_output:
+        t.curvature *=2 # temporary fix to be "spectral curvature" here
+
+        with capture_hide('setup printout') as self.setup_output:
             self.fermicat = Fermi4FGL(); 
             self.uwcat = UWcat().set_index('jname')
-        t.curvature *=2 # temporary fix to be "spectral curvature" here
-        # look up the beta uncertainty from the UW cat  
-        t['d_unc'] = 2*self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
+            # look up the beta uncertainty from the UW cat
+            t['d_unc'] = 2*self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
+            self.df = df = t.query(selection).copy()
+            print(f"""Read {len(t)} source entries from `{datafile}`, selected {len(df)} with criteria '{selection}'""")  
 
-        self.df = df = t.query(selection).copy()
-        show(f"""Read {len(t)} source entries from `{datafile}`, selected {len(df)} with criteria '{selection}'""")  
+
+
 
         # descriptive rename and clean
         df.rename(columns=dict(singlat='sin_b', eflux100='eflux', variability='var',
@@ -130,7 +133,8 @@ class FermiSources:
         show(f"""Note that the number of pulsar+blazars (including bcu) is {100*id/(id+t.other):.0f}% of the total
             associated.""")
         
-    def show_positions(self, xds, figsize=(12,12), title=None, fignum=None, caption=None):
+    def show_positions(self, xds, figsize=(12,12), colorbar=True, colorbar_kw={},
+                       title=None, fignum=None, caption=None):
         """
         * xds - a DataFrame indexed with 4FGL names (like a dataset from here) and 
         columns `glon`, `glat` and `log_flux`
@@ -153,8 +157,10 @@ class FermiSources:
         if title is not None:
             afig.ax.set(title=title)
         scat = afig.scatter(xpos, c=xds.log_eflux);
-        cb = plt.colorbar(scat,  shrink=0.35,
-                        ticks=[-12,-11,-10], label='log Eflux');
+        cbar_kw = dict(shrink=0.35, ticks=[-12,-11,-10], label='log Eflux')
+        if colorbar:
+            cbar_kw.update(colorbar_kw)
+            cb = plt.colorbar(scat,  **cbar_kw)
         show(afig.fig, fignum=fignum, caption=caption)
     
 
@@ -214,7 +220,7 @@ class FermiSources:
         
         model = get_model(model_name)
         self.classifier = self.fit( model )
-        self.df.loc[:,'prediction'] = self.predict()#, 'association=="unid"')
+        self.df.loc[:,'prediction'] = self.predict()
 
         if show_confusion:
             self.confusion_display(model=model, hide=hide)
@@ -340,7 +346,46 @@ class FermiSources:
             left, the unid on the right.""",
                         **fpeak_kw('x'),
                           yticks=[0,0.5,1,1.5,2])
-        
+
+   
+def ait_plots(df, hue, hue_order=None, ncols=2, width=6, cbar=True):
+    
+    class Gfun:
+        def __init__(self, hue, hue_order):
+            self.hue=hue; self.hue_order=hue_order
+        def __call__(self, idx):
+            try:
+                return self.hue_order.index(df.loc[idx, self.hue])
+            except ValueError:
+                return
+
+    g = df.groupby(Gfun(hue, hue_order)) if hue_order is not None else df.groupby(hue)
+    n = len(g)
+    nrows = (n-1)//ncols +1
+    fig, axx = plt.subplots(nrows=nrows, ncols=ncols,
+                            figsize=(width*ncols+1, width/2*nrows+1, ),
+                            gridspec_kw=dict(wspace=0.05, hspace=0.1),
+                            subplot_kw=dict(projection='aitoff'));
+    
+    for (name, dfx), ax in zip(g, axx.flat):
+        if hue_order is not None:
+            name = hue_order[int(name)]
+        ax.set(xticklabels=[], yticklabels=[], visible=True)
+        ax.grid(color='grey')
+        ax.set_facecolor('lightskyblue') #'lavender')
+        ax.text(0.0,0.9, f'{name}', transform=ax.transAxes)
+        scat=ax.scatter(*translate_coords(dfx), s=30, c=dfx.log_eflux,
+                vmin=-12.5, vmax=-10,
+                )
+    for ax in axx.flat[n:]: ax.set_visible(False)
+    if cbar:
+        h = 0.6/nrows
+        cb=plt.colorbar(scat, fig.add_subplot(position=[0.92, 0.85-h, 0.015, h]) )  
+        cb.set_label('log eflux', fontsize=10)
+        cb.set_ticks([-12, -11, -10],)
+        cb.ax.tick_params(labelsize=10)
+    return fig
+
 class SpecFunLookup:
     """dict allowing lookup of the uw spectral function name using 4FGL name
 
@@ -450,3 +495,49 @@ def sedplotgrid(df, ncols=10, height=1, fignum=None, **kwargs):
          tooltips=tt, 
          caption=f"""SED plots. Scales for the x and y axes are {ax.get_xlim()} GeV and 
          {ax.get_ylim()} eV cm-2 s-1. uw1410 in blue, 4FGL-DR4 in red.""")
+    
+
+def show_sed_plots(df, fignum=None, ncols=15, height=0.5):
+    df = df.copy()
+    df['Fp'] = 10**df.log_fpeak
+    df['Ep'] = 10**df.log_epeak
+    cols = 'ts r95 glat glon Fp Ep curvature class1 nbb sgu uw_name'.split()
+    sedplotgrid(df[cols], fignum=None, ncols=ncols, height=height)
+    
+def counts(df, hue, name='counts'):
+    t = df.groupby(hue).size()
+    t.name=name
+    return t
+def translate_coords(*args):
+    """ 
+    Helper for aitoff projection: Translate degrees to radians (cleaner if aitoff did it)
+    Expect first arg or args to be:
+    * a SkyCoord object (perhaps a list of positions)
+    - or -
+    *  lists of l, b in degrees
+    - or -
+    * a DataFrame with glon and glat columns
+    """
+    nargs = len(args)
+    if nargs>0 and isinstance(args[0], SkyCoord):
+        sc = args[0].galactic
+        l, b = sc.l.deg, sc.b.deg
+        rest = args[1:]
+    elif nargs>0 and isinstance(args[0], pd.DataFrame):
+        df = args[0]
+        sc = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+        l, b = sc.l.deg, sc.b.deg
+        rest = args[1:]
+    elif nargs>1:
+        l, b = args[:2]
+        rest = args[2:]
+    else:
+        raise ValueError('Expect positional parameters l,b, or skycoord or DataFrame with glon glat')
+
+    # convert to radians 
+    x  = -np.radians(np.atleast_1d(l))
+    x[x<-np.pi] += 2*np.pi # equivalent to mod(l+pi,2pi)-pi I think
+    y = np.radians(np.atleast_1d(b))
+    return [x,y] + list(rest) 
+
+    
