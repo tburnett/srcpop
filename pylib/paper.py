@@ -66,7 +66,7 @@ class Paper(Curvature):
               But the range of curvatures exceeds that observed for pulsars which are limited 
              by the monoenergetic curvature radiation value. We define a selection in the range
               of spectral parameters which almost all of these satisfy,  resulting in 617 total.
-            Applying it to each of the associated source classes we see that none of the 
+            Applying the same selection to each of the associated source classes we see that none of the 
              resulting spatial distributions are consistent, the closest being 
              millisecond pulsars (94) and Galactic clusters (19). 
              While there may be some undetected pulsars in this set, we conclude that the
@@ -278,7 +278,7 @@ class Paper(Curvature):
         ## The way forward
         * Invite checks!
         * Refit with 4FGL-DR4 only, (maybe Jean can produce a new version without the curvature prior? There is always DR3)
-        * Estimate the fraction of MSPs
+        * Estimate the fraction of MSPs, using Careful comparison of the curvature distributions
         * A section on previous ML results (Elizabeth)
         * A section on efforts to find associations (Kent)
         * Hopefully speculation on narrow curved sources
@@ -299,7 +299,7 @@ def main():
                     hue_order='UNID-BLL UNID-FSRQ UNID-PSR'.split(),
                 size='log_ts', sizes=(20,200),)# alpha=0.4)
     x = np.log10([0.4, 0.4, 4, 4])
-    y = [2,0.4,0.4,2]
+    y = [2,0.5,0.5,2]
     ax.plot(x, y, ls=':', color='k');
     ax.set(xlabel='$E_p$ (GeV)',xticks=[-1,0,1,2], 
         xticklabels='0.1 1 10 100'.split(), xlim=(-1.2,2.5))
@@ -309,9 +309,10 @@ def main():
     The dotted line encompasses most of the PSR prediction, defines the "spectral cut".
     """)
 
-    elim=(0.4,4); fpmax=20
+    elim=(0.4,4); fpmax=20; cmin=0.5
     show(f"""### Application of the "spectral cut" to the source classes
         Selection cuts: 
+        * curvature>{cmin}
         * {elim[0]}< $E_p$ < {elim[1]} GeV  
         * $F_p$ < {fpmax} eV s-1 cm-2
         """)
