@@ -1,5 +1,5 @@
 
-from fermi_sources import *
+from pylib.fermi_sources import *
 
 # fs_data = None
 # train_df= unid_df=None

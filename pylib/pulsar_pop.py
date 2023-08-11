@@ -35,7 +35,7 @@ def introduction(npsr=312, nunid=762, nsgu=None):
 
 class Pulsars:
     def __init__(self):
-        from utilities.catalogs import Fermi4FGL, UWcat
+        from pylib.catalogs import Fermi4FGL, UWcat
         self.df =  get_source_data()
         
         df = self.df

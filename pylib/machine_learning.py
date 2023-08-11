@@ -6,11 +6,11 @@ class ML(FermiSources):
                  title="""Application of machine learning to the Fermi unassociated sources
                 """,
                  **kwargs):
-        from utilities.catalogs import Fermi4FGL
+
         show('# '+title)
         show_date()
         super().__init__(*pars, **kwargs)
-        fcat = self.fermicat #= Fermi4FGL()
+        fcat = self.fermicat 
         self.df.loc[:,'sgu'] = fcat['flags'].apply(lambda f: f[14])
         self.df.loc[:,'fcat_epeak'] = fcat.specfunc.apply(lambda f: f.sedfun.peak)
         self.df.loc[:,'fcat_curvature']= 2 * fcat.specfunc.apply(lambda f: f.curvature())

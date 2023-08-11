@@ -1,6 +1,7 @@
-from fermi_sources import *
+from pylib.fermi_sources import *
 
-from utilities.catalogs import *
+from pylib.catalogs import *
+from pylib.spectral_functions import SedFun
 
 show(f"""# UW vs. 4FGL peak energies""")
 show_date()

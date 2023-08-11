@@ -1,14 +1,13 @@
 from pylib.machine_learning import *
 
 class Curvature(ML):
-    def __init__(self, title='Evidence for a new gamma-ray source class'):
-        from utilities.catalogs import UWcat, Fermi4FGL
+    def __init__(self, title='Analysis of spectral curvature',
+                 show_confusion=False, **kwargs):
 
         # with capture_hide('setup output') as setup_output:
-        super().__init__(title=title)
-            # self.fermicat = Fermi4FGL(); 
-            # self.uwcat = UWcat().set_index('jname')
-        self.train_predict(show_confusion=False)
+        super().__init__(title=title, **kwargs)
+
+        self.train_predict(show_confusion=show_confusion)
 
     def intro(self):
         show(f"""
@@ -117,7 +116,7 @@ class Curvature(ML):
         fig, ax1 = plt.subplots(figsize=(8,8)) if ax is None else (ax.figure, ax)
         sns.scatterplot(fcat, ax=ax1, x='curvature', y=fcat.d_unc.clip(0,1))
         if ax is None: show(fig, fignum=fignum, caption='')
-
+ 
     def fgl_pulsar_curvature(self, fignum=None):
         show(r"""### Compare $\beta$ and $d$ for pulsars
         Since pulsars are fit to both PLEC and LP spectra, this is a check on
@@ -142,14 +141,44 @@ class Curvature(ML):
         sns.scatterplot(df, ax=ax1, x='d', y='d_unc',)# **size_kw)
         sns.scatterplot(df, ax=ax2, x='d',  y='beta', )#**size_kw)
         ax2.plot([0, 2.0], [0,1.0], ls='--', color='red')
-        ax2.set(xlim=(0, 1.6), ylim=(0,0.8),yticks=np.arange(0,0.9, 0.2))
 
-        for ax in (ax1,ax2): ax.axvline(4/3, ls='--', color="0.6")
+        for ax in (ax1,ax2): 
+            ax.axvline(4/3, ls='--', color="0.6")
+            ax.set(xlim=(0, 2), ylim=(0,0.8),yticks=np.arange(0,0.9, 0.2))
+        ax1.plot( (4/3, 2), (0, 2-4/3), ls='--', color='red')
         show(fig, fignum=fignum, caption=r"""Correlations of the PLEC curvature parameter $d$
               (`PLEC_ExpFactorS` in the FITS file) with respect to
         its uncertainty (top), and the LP curvature beta (`LP_Beta`) (bottom). The expected correspondence to the 
         LP curvature $\beta$ is shown as a red dash line on the bottom, and the theoretical upper limit
-        for synchrotron curvature radiation at 4/3 as a vertical dashed line.
+        for synchrotron curvature radiation at 4/3 as a vertical dashed line. The top red line
+        is the 1-sigma limit for curvature to exceed 4/3.
+        """)
+
+    def fgl_curvature_unid_psr(self, fignum=7):
+
+        show(f"""### Curvature vs. its error for the UNID-PSR class
+        """)
+        df = self.df.query('association=="unid" & prediction=="psr"').copy()
+        fcat =self.fermicat
+        df3 = df[np.isin(df.index, fcat.index)].copy()
+        df3['log TS'] = np.log10(df3.ts)
+        # self.fermicat.loc[df.index, 'curv_unc']
+        df3['curv_unc'] = fcat.curv_unc
+        df3['curv'] = fcat.curvature
+        
+        fig, ax = plt.subplots(figsize=(10,6))
+        sns.scatterplot(df3, x='curv', y='curv_unc',
+                        size='log TS', sizes=(20,200),
+                        ax=ax);
+        ax.set(ylim=(0,1), xticks=np.arange(0,2.1,0.5))
+        ax.plot((4/3,2), (0,2-4/3), ls='--', color='red');
+        ax.plot((4/3,2), (0,(2-4/3)/2), ls='--', color='red');
+        ax.axvline(4/3, ls='--',color='grey');
+        show(fig, fignum=fignum, caption=f"""The {self.fermicat.index.name}
+        curvature error vs. 
+        curvature for sources selected into the UNID-PSR subset. The vertical
+        line is at the 4/3 limit for pulsars, and the red lines correspond to
+        1 and 2 sigmas above 4/3.
         """)
 
     def compare_curvature(self, fignum=None):
@@ -171,7 +200,8 @@ class Curvature(ML):
         for df, ax in zip(dfs, axx):
             sns.kdeplot(df, ax=ax, x='curvature', y='fcat_curvature', hue='association');
             sns.scatterplot(df, ax=ax, x='curvature', y='fcat_curvature', hue='association', alpha=0.5);
-            ax.set(ylim=(-0.2,1.6), xlim=(-0.2,2.1), xlabel='uw_curvature', xticks=ticks, yticks=ticks)
+            ax.set(ylim=(-0.2,2.1), xlim=(-0.2,2.1), xlabel='uw_curvature', xticks=ticks, yticks=ticks,
+                   aspect=1)
             ax.plot([0,1.5], [0,1.5], 'r')
             ax.axhline(4/3, ls='--', color='0.3')
             ax.axvline(4/3, ls='--', color='0.3')

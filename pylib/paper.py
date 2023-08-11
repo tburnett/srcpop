@@ -25,11 +25,12 @@ def spectral_cut(df, elim=(0.4,4), fpmax=20):
             & (df.log_epeak < np.log10(elim[1]) )
             & (df.log_fpeak < np.log10(fpmax)   ) 
             ]
-    
+   
   
 class Paper(Curvature):
-    def __init__(self):
-        super().__init__(title='Observation of a new gamma-ray source class')
+    def __init__(self, **kwargs):
+        super().__init__(title='Observation of a new gamma-ray source class',
+                         **kwargs)
 
         df = self.df#[self.df.nbb<4].copy()
         df['log TS'] = np.log10(df.ts)
@@ -87,7 +88,7 @@ class Paper(Curvature):
         t['Total'] = np.sum(t.to_numpy(), axis=1)
         return t
     
-    def d_vs_ep(self, ax=None, hue_order='MSP young UNID-PSR'.split(), legend='auto'):
+    def d_vs_ep(self, ax=None, hue_order='MSP young UNID-PSR'.split(), legend='auto', plot_limit=False):
         df = self.df
         hue_kw = dict(hue='source type', hue_order=hue_order)
         hue_order='bll fsrq psr'.split()
@@ -103,9 +104,10 @@ class Paper(Curvature):
         ax.set(xticks=np.log10(xticks), xticklabels=[f'{x}' for x in xticks] , 
             xlabel='$E_p$ (GeV)', xlim=(-0.9,0.9), ylim=(0,2.1))
         ax.set(yticks=np.arange(0,2.1,0.5))
-        ax.axhline(4/3, ls='--', color='red')
+        if plot_limit:
+            ax.axhline(4/3, ls='--', color='red')
         loge_pts = [-0.77,0.6]
-        ax.plot(loge_pts, uv(loge_pts),  ls='--', color='k')
+        ax.plot(loge_pts, uv(loge_pts),  ls=':', color='k')
         if legend=='auto': plt.legend(fontsize=12, loc='lower left', bbox_to_anchor=(0.88,0.5));
         return fig
 

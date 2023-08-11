@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 
 from astropy.coordinates import SkyCoord
-from utilities.ipynb_docgen import capture_hide, show
-from utilities.catalogs import UWcat, Fermi4FGL
+from pylib.ipynb_docgen import capture_hide, show
+from pylib.catalogs import UWcat, Fermi4FGL
 
 import seaborn as sns
 sns.set_theme(font_scale=1.25)
@@ -62,15 +62,17 @@ class FermiSources:
     Manage the set of Fermi sources
     """
     
-    def __init__(self, datafile= 'files/fermi_sources_v2.csv',
+    def __init__(self, datafile='files/fermi_sources_v2.csv',
                 mlspec=None,
+                fgl='dr4',
                 selection='delta<0.25 & curvature<2.1'):
         
         t = pd.read_csv(datafile, index_col=0 )
         t.curvature *=2 # temporary fix to be "spectral curvature" here
 
         with capture_hide('setup printout') as self.setup_output:
-            self.fermicat = Fermi4FGL(); 
+            self.fcat_version=fgl
+            self.fermicat = Fermi4FGL(fgl); 
             self.uwcat = UWcat().set_index('jname')
             # look up the beta uncertainty from the UW cat
             t['d_unc'] = 2*self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
@@ -163,8 +165,6 @@ class FermiSources:
             cb = plt.colorbar(scat,  **cbar_kw)
         show(afig.fig, fignum=fignum, caption=caption)
     
-
-
     def getXy(self, mlspec=None) : #, features, target, target_names=None):
         """Return an X,y pair for ML training
         """
@@ -252,7 +252,7 @@ class FermiSources:
         return plt.gcf()
     
         
-    def confusion_display(self, model, mlspec=None, hide=False, test_size=0.25, **kwargs):
+    def confusion_display(self, model, mlspec=None, hide=True, test_size=0.25, **kwargs):
         """
         """
         from sklearn.model_selection import train_test_split
@@ -290,7 +290,7 @@ class FermiSources:
                 )
 
             ax.set_title(title)
-        show(fig, summary=None if not hide else 'Confusion matix plot')
+        show(fig, summary=None if not hide else 'Confusion matrix plot')
 
     def scatter_train_predict(self,  x,y,fignum=None, caption='', target='unid', **kwargs):
         
@@ -393,7 +393,7 @@ class SpecFunLookup:
     """
     def __init__(self, df):
         with capture_hide():
-            from utilities.catalogs import UWcat
+            from pylib.catalogs import UWcat
             uwcat = UWcat('uw1410')
 
         self.d1 = dict(zip(df.index, df.uw_name));
@@ -421,7 +421,7 @@ class SEDplotter:
     """
     def __init__(self, plec=False):
         """ set up the catalogs that have specfunc columns"""
-        from utilities.catalogs import UWcat, Fermi4FGL
+        from pylib.catalogs import UWcat, Fermi4FGL
         self.uw = UWcat('uw1410')
         self.uw.index = self.uw.jname  # make it indexsed by the uw jname
         self.uw.index.name = 'UW jname'
@@ -430,7 +430,7 @@ class SEDplotter:
         self.plot_kw=[dict(lw=4,color='blue', alpha=0.5),dict(color='red')]
         
     def fgl_plec(self, name):
-        from utilities.catalogs import PLSuperExpCutoff4
+        from pylib.catalogs import PLSuperExpCutoff4
         fgl_names =list(self.fcat.index) 
         row = self.fcat.data[fgl_names.index(name)]
         pars = [row[par] for par in 'PLEC_Flux_Density PLEC_IndexS PLEC_ExpfactorS PLEC_Exp_Index'.split()]
