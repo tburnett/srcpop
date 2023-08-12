@@ -405,8 +405,6 @@ class SpecFunLookup:
     def get(self):
         return pd.Series(dict([ (idx, self[idx]) for idx in self.df.index]))
 
-
-
 def show_unique(sclass):
     v,n = np.unique(sclass,  return_counts=True)
     show(
@@ -496,7 +494,6 @@ def sedplotgrid(df, ncols=10, height=1, fignum=None, **kwargs):
          caption=f"""SED plots. Scales for the x and y axes are {ax.get_xlim()} GeV and 
          {ax.get_ylim()} eV cm-2 s-1. uw1410 in blue, 4FGL-DR4 in red.""")
     
-
 def show_sed_plots(df, fignum=None, ncols=15, height=0.5):
     df = df.copy()
     df['Fp'] = 10**df.log_fpeak
@@ -508,6 +505,7 @@ def counts(df, hue, name='counts'):
     t = df.groupby(hue).size()
     t.name=name
     return t
+
 def translate_coords(*args):
     """ 
     Helper for aitoff projection: Translate degrees to radians (cleaner if aitoff did it)

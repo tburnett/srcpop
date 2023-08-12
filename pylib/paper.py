@@ -1,26 +1,29 @@
-from pylib.curvature import*
+from pylib.curvature import *
+from pylib.kde import KDE
 
-class HCUcut:
-    def __init__(self, a=(-0.7,0.4), b=(0.7,1.5)):
-        """ a,b -- 2-tuples for two points in log10(epeak) - curvature space
-        defining a line
-        """
-        from numpy import linalg
-        self.a = np.array(a)
-        d = np.array(b)-self.a
-        self.ref = d/linalg.norm(d)
-    def perp(self, c):
-        "Return signed perpendicular distance to the line"
-        return float(np.cross(self.ref, np.array(c)-self.a))    
-    def __call__(self, x):
-        """Function of log10(Ep) returning a curvature defining the line"""
-        return self.a[1] + (x-self.a[0]) * self.ref[1]/self.ref[0]
-    def above(self, c):
-        """Return True if c is above the line"""
-        return c[1]>self(c[0])
+# class HCUcut:
+#     def __init__(self, a=(-0.7,0.4), b=(0.7,1.5)):
+#         """ a,b -- 2-tuples for two points in log10(epeak) - curvature space
+#         defining a line
+#         """
+#         from numpy import linalg
+#         self.a = np.array(a)
+#         d = np.array(b)-self.a
+#         self.ref = d/linalg.norm(d)
+#     def perp(self, c):
+#         "Return signed perpendicular distance to the line"
+#         return float(np.cross(self.ref, np.array(c)-self.a))    
+#     def __call__(self, x):
+#         """Function of log10(Ep) returning a curvature defining the line"""
+#         return self.a[1] + (x-self.a[0]) * self.ref[1]/self.ref[0]
+#     def above(self, c):
+#         """Return True if c is above the line"""
+#         return c[1]>self(c[0])
     
-def spectral_cut(df, elim=(0.4,4), fpmax=20):
-    return df[ (df.curvature>0.5)  
+def spectral_cut(df, elim=(0.4,4), fpmax=20, cmin=0.5):
+    show("""
+         """)
+    return df[ (df.curvature>cmin)  
             & (df.log_epeak > np.log10(elim[0]) )
             & (df.log_epeak < np.log10(elim[1]) )
             & (df.log_fpeak < np.log10(fpmax)   ) 
@@ -43,8 +46,8 @@ class Paper(Curvature):
             if class1=='glc': return 'glc'
             return rec.association
         df['source type']= df.apply(plike, axis=1)
-        self.hcu_cut = HCUcut()
-        df['HCU cut'] = df.apply(lambda row: self.hcu_cut.above((row.log_epeak, row.curvature)),axis=1)
+        # self.hcu_cut = HCUcut()
+        # df['HCU cut'] = df.apply(lambda row: self.hcu_cut.above((row.log_epeak, row.curvature)),axis=1)
 
         self.df=df
 
@@ -64,8 +67,9 @@ class Paper(Curvature):
              variability measure. The UNID sources predicted to be pulsars have 
              significant spectral curvature, with peak energies in the range seen 
              in the pulsars used for training, and are clearly Galactic in spatial distribution. 
-              But the range of curvatures exceeds that observed for pulsars which are limited 
-             by the monoenergetic curvature radiation value. We define a selection in the range
+             But the distribution of curvatures and spectral peak energies is quite unlike that 
+             seen for pulsars, with curvatures extending well above those expected for pulsasrs.
+             We define a selection in the range
               of spectral parameters which almost all of these satisfy,  resulting in 617 total.
             Applying the same selection to each of the associated source classes we see that none of the 
              resulting spatial distributions are consistent, the closest being 
@@ -75,13 +79,13 @@ class Paper(Curvature):
         """)
 
 
-    def examine_cuts(self, elim=(0.4,4), fpmax=20):
+    def examine_cuts(self, elim=(0.4,4), fpmax=20, cmin=0.5):
         all = self.df 
         spcut = spectral_cut(all, elim=elim, fpmax=fpmax)
-        low_b = spcut[spcut.log_fpeak<1] 
+        # low_b = spcut[spcut.log_fpeak<1] 
         c1 = all.groupby('source type').size(); c1.name='All'
         c2= spcut.groupby('source type').size(); c2.name='Spectral cut'
-        c3 = low_b.groupby('source type').size(); c3.name='Weak'
+
         t = pd.DataFrame([c1,c2]).reindex(
             columns='MSP young bll fsrq bcu glc other UNID-PSR UNID-BLL UNID-FSRQ'.split())
         
@@ -89,46 +93,100 @@ class Paper(Curvature):
         return t
     
     def d_vs_ep(self, ax=None, hue_order='MSP young UNID-PSR'.split(), legend='auto', plot_limit=False):
-        df = self.df
+        df = self.df.query('log_epeak>-0.75 & curvature>0.2' )
+        df = df[df['source type'].apply(lambda st: st in hue_order)]
         hue_kw = dict(hue='source type', hue_order=hue_order)
         hue_order='bll fsrq psr'.split()
         size_kw =dict(size='log TS', sizes=(10,400))
-        uv = self.hcu_cut
+        # uv = self.hcu_cut
         fig, ax = plt.subplots(figsize=(8,6)) if ax is None else (ax.figure, ax)
         size_kw =dict(size='log TS', sizes=(10,200))
-        sns.scatterplot(df.query('log_epeak>-0.75' ), ax=ax,
-                        x='log_epeak', y='curvature', legend=legend,
+        data_kw= dict(data=df, x='log_epeak', y=np.log10(df.curvature))
+        sns.scatterplot(**data_kw, ax=ax, #x='log_epeak', y=np.log10(df.curvature), legend=legend,
+                    style=hue_kw['hue'],
+                    markers={'UNID-PSR':'o', 'MSP':'s', 'glc':'d'},
+                    palette={'UNID-PSR':'cornflowerblue', 'MSP':'red', 'glc':'seagreen'},
                     **hue_kw, #hue='pulsar type', hue_order='MSP predicted'.split(),
                     **size_kw)
+        hue_kw.update(hue_order=['MSP'])
+        sns.kdeplot(**data_kw, **hue_kw,                
+                    palette={'UNID-PSR':'cornflowerblue', 'MSP':'red', 'glc':'seagreen'},)
+        
         xticks = [0.25,0.5,1,2,4]
         ax.set(xticks=np.log10(xticks), xticklabels=[f'{x}' for x in xticks] , 
-            xlabel='$E_p$ (GeV)', xlim=(-0.9,0.9), ylim=(0,2.1))
-        ax.set(yticks=np.arange(0,2.1,0.5))
+            xlabel='$E_p$ (GeV)', xlim=np.log10((0.2,8)), 
+            ylabel='$\log(d_p)$', ylim=(-.70,0.35), # yticks=np.arange(0,2.1,0.5),
+            )
         if plot_limit:
             ax.axhline(4/3, ls='--', color='red')
-        loge_pts = [-0.77,0.6]
-        ax.plot(loge_pts, uv(loge_pts),  ls=':', color='k')
-        if legend=='auto': plt.legend(fontsize=12, loc='lower left', bbox_to_anchor=(0.88,0.5));
+        # loge_pts = [-0.77,0.6]
+        # ax.plot(loge_pts, uv(loge_pts),  ls=':', color='k')
+        if legend=='auto': plt.legend(fontsize=12, loc='lower left', bbox_to_anchor=(0.88,0.4));
         return fig
 
-    def show_d_vs_ep(self, fignum=None, ):
-        show(f"""## Separating HCUs and pulsars
-    
-            Here we look at the distribution in curvature and $E_p$.
-            In Figure {fignum} below we show the curvature vs. $E_p$ for the known pulsars and 
-            the curved UNID sources. The red dashed line at curvature 4/3 represents
-            the upper limit for pulsars, and indeed the HCU candidate distribution 
-            shows no indication of such a limit. However, there must be pulsar
-            contributions. To estimate that, and determine a selection that concentrates
-            the HCU contribution, we will select those above the inclined dashed black line. 
-            """)
-        fig = self.d_vs_ep()
+    def show_dp_vs_ep(self, fignum):
+
+        df = self.df.copy()
+        # hc = HCUcut()
+        # df['perp'] = df.apply(lambda row: HCUcut().perp((row.log_epeak,row.curvature)), axis=1)
         
-        show(fig, fignum=fignum, caption="""Scatter plot of curvature vs. $E_p$ showing known pulsars and
-        UNIDs predicted to be pulsars. The horizontal dashed red line is at 4/3,
-        the synchrotron curvature radiation maximum. The inclined black dashed
-        line represents an empirical separation to isolate most of the MSPs
-        and generate an enhanced HCU sample for those above it.""")
+        df['log TS'] = np.log10(df.ts)
+        show(f"""## Analysis of curvature vs. peak energy
+        For MSPs, the spectral curvature is  correlated with the
+        peak energy, a consequence of $\dot{{E}}$ evolution. 
+        Specifically it was shown that $E_p = 1.1\ \mathrm{{GeV}} (d_p/0.46)^{{1.33}}$ within 30%. [3PC paper]. 
+
+        In Figure {fignum} we show such a plot for MSPs, with the UNID-PSR and glc subsets overlayed
+        for comparison. 
+        """)
+        fig, ax =plt.subplots(figsize=(10,6))
+        fig = self.d_vs_ep( ax=ax, hue_order='UNID-PSR MSP glc'.split(),)
+        # show(fig, hue_order='UNID-PSR MSP glc'.split(), ax=ax), 
+        #      fignum=1, caption="""Curvature $d$ vs.$E_p$. The dotted line
+        #      is an arbitrary reference to separate MSPs.
+        #      """)
+        f = lambda x:  0.75 * ( x - np.log10(1.1)) + np.log10(0.46) 
+        xx = np.array([-1,1])
+        ax.plot(xx, f(xx), 'k'); #ax.plot( np.log10(1.1), np.log10(0.46), 'd', markersize=30);
+        ax.axhline(np.log10(4/3), ls='--', color='k');
+        show(fig, fignum=fignum, caption=f"""Dependence of the spectral curvature on peak energy.
+        The horizontal dashed line is at 4/3, the value for the curvature radiation from monoenergetic 
+        electrons, while the inclined solid line corresponds to a study of correlation of $d_p$ and $E_p$ 
+        described in the text. The contours for a KDE estimation of the MSP density are also shown.
+        """)
+
+        show(f"""
+        #### Using KDE to estimate MSP content of UNID-PSR
+        Using the KDE function derived from the $E_p$ vs. $d_p$, distributions, consider 
+        its distribution over the MSP and UNID-PSR subsets. Assuming that a component
+        of the UNID-PSR sources are undetected MSPs which would have a similar distribution,
+        we see from Figure {fignum+1} that the largest possible size is about four times the number currently
+        detected well under the latitude estimate of about the same number.
+        """)
+
+        data= self.df[(df.log_epeak>-0.5) & (df.curvature>0.2)].copy()
+        source_type = data['source type']
+        data['log_d'] = np.log10(data.curvature.clip(1e-3,10))
+        msp_data = data[source_type=='MSP']  
+        x,y = 'log_epeak log_d'.split()
+        msp_kde = KDE(msp_data,  x=x, y=y,  reflectx=False)
+        
+        # msp_kde.plot()
+        
+        msp_cdf = msp_kde(msp_kde.dfxy.to_numpy().T)
+        unid_data = data[source_type=='UNID-PSR' ]  
+        unid_cdf = msp_kde(unid_data.loc[:,(x,y)].to_numpy().T)
+        hkw = dict(bins=np.linspace(0,1,11), histtype='step', density=False, lw=2 )
+        fig, ax = plt.subplots(figsize=(6,4))
+        ax.hist(msp_cdf, **hkw,  label='MSP');
+        ax.hist(unid_cdf, **hkw,   label='UNID-PSR')
+        ax.set(ylabel='Counts', xlabel = 'KDE probability', 
+            xlim=(0,1), xticks=np.arange(0,1.1,0.25))
+        ax.legend(); 
+        show(fig, fignum=fignum+1, caption=f"""Histogram of the KDE probability distribution 
+        derived from MSPs applied to MSPs and UNID-PSRs.
+        """)
+
 
     def peak_position(self):
         hue_order='bll fsrq psr'.split()
@@ -268,81 +326,154 @@ class Paper(Curvature):
             xlabel= r'$|b|$ (deg)');
         return fig
 
+    def show_sin_b(self,fignum):
+        show(rf"""### Distributions in $|\sin(b)|$
+        WE look at distributions in $|\sin(b)|$ to estimate the contribution of undetected MSPs to 
+        UNID-PSR population.
+        """)
+        hue_kw = dict( hue='source type',
+                    hue_order='UNID-PSR MSP glc '.split())
+        size_kw = dict(size='log TS', sizes=(10,200))
+        data_kw = dict(data=self.df, x='abs_sin_b', )
+        fig, ax = plt.subplots(figsize=(8,4))
+        sns.histplot(**data_kw,**hue_kw, ax=ax, element='step',
+                    bins=np.arange(0,1.1,0.1), log_scale=(False,True))
+        ax.set(xlim=(0,1), xlabel=r'$|\sin(b)|$', xticks = np.arange(0,1.1,0.25))
+        # kde= sns.kdeplot(**data_kw,**hue_kw,ax=ax)
+        # ax.set(ylim=(-1,1), xlim=(0,1), xlabel=r'$|\sin(b)|$',
+        #       yticks=np.arange(-1,1.1,0.5))
+        # plt.legend(fontsize=12, bbox_to_anchor=(0.85,0.6) );
+        show(fig, fignum=fignum, caption="""Histogram of $|\sin(b)|$.
+        """)
+        show(f"""As seen in Figure {fignum}, the number of undetected MSPs must be a large
+            fraction of 
+            all UNID-PSR sources above about ${np.degrees(np.arcsin(0.4)):.0f}^\circ$, in number equal to the
+            number of detected ones.
+        """)
+    
     def ml_summary(self):
         show(f"""## ML step summary
         * Training set: pulsars (MSP + young), BL Lacs, FSRQs
         * Features:  spectral peak parameters ( energy, flux, curvature), variability, energy flux
         * predictions: UNID -> (UNID-PSR, UNID-BLL, UNID-FSRQ)
         """)
+    def show_examine_cuts(self, elim=(0.4,4), fpmax=20, cmin=0.5):
+        show(f"""### Application of the "spectral cut" to the source classes
+            We subdivide the sources into the following ten subsets called "source types"
+            below<br>
+            
+            Associated: 
+            * pulsars: MSP, young
+            * blazars: bll, fsrq, and bcu
+            * Galactic clusters: glc
+            * others: Everything else<br>
+            
+            Unassociated: UNID-PSR, UNID-FSRQ and UNID-BLL according to ML prediction.
+        
+            Preliminary spectral selection cuts are: 
+            * $d_p$ >{cmin}
+            * {elim[0]}< $E_p$ < {elim[1]} GeV  
+            * $F_p$ < {fpmax} eV s-1 cm-2
+
+            The resulting counts:
+            """)
+        show(self.examine_cuts(elim, fpmax, cmin))
+
+    def show_prelim_dp_vs_ep(self, fignum=1):
+        show(f"""## Curvature vs. $E_p$ for UNID
+        The ML training depended strongly on the two spectral variables
+        peak curvature $d_p$ and energy $E_p$. Here we look at these 
+        variables for the predictions of the UNID sources.    
+        """)
+        fig, ax = plt.subplots(figsize=(10,8))
+        sns.scatterplot(self.df, ax=ax,x='log_epeak', y='curvature', hue='source type', 
+                        hue_order='UNID-BLL UNID-FSRQ UNID-PSR'.split(),
+                    size='log TS', sizes=(20,200),)# alpha=0.4)
+        x = np.log10([0.4, 0.4, 4, 4])
+        y = [2,0.5,0.5,2]
+        ax.plot(x, y, ls=':', color='k');
+        ax.set(xlabel='$E_p$ (GeV)',xticks=[-1,0,1,2], 
+                xticklabels='0.1 1 10 100'.split(), xlim=(-1.2,2.5),
+                ylabel='$d_p$',)
+        plt.legend(fontsize=12)
+        show(fig, fignum=fignum, caption="""Curvature vs. peak energy. 
+            Colors identify the ML prediction.
+            The dotted line encompasses most of the PSR prediction, defines the "spectral cut".
+        """)
+        self.show_examine_cuts()
+
+    def show_skymaps(self,fignum=2):
+        show(f""" ## Aitoff Skymaps
+        Here we show three sets of skymaps. First, for the three UNID subsets 
+        to assess the Galactic content of each; then the same three following the 
+        spectral cut, and finally four subsets of the associated sources
+        to look for candidates to account the Galactic sources accounting for 
+        the Galactic unassociated.
+
+        """)
+        show(f"""#### UNID """)
+        show( ait_plots(self.df, 
+                        hue='source type', hue_order='UNID-FSRQ UNID-BLL UNID-PSR'.split(),
+                    )  ,fignum=fignum, caption='Aitoff plots')
+        show(f"""#### UNID after spectral cut""")
+        show( ait_plots(spectral_cut(self.df), 
+                        hue='source type', hue_order='UNID-FSRQ UNID-BLL UNID-PSR'.split(),
+                    )  ,fignum=fignum+1, caption='Aitoff plots')
+
+        show(f"""#### Associated after spectral cut """)
+        df = self.df.copy()
+        def sort_ided(st):
+            if st in 'MSP glc'.split(): return st
+            if st in 'bcu bll fsrq'.split(): return 'blazar'
+            return 'the rest'
+        df['st'] = df['source type'].apply(sort_ided)
+        show(
+            ait_plots(spectral_cut(df.query('association!="unid"')), 
+                hue='st', hue_order=('MSP', 'glc', 'blazar','the rest') ),
+            fignum=fignum+2, caption='Aitoff plots')
+        show(f"""### Conclusions:
+        * Figure {fignum}: The UNID-PSR were selected as such according to 
+        the spectral and variability only: Clearly they are dominantly Galactic.
+        * Figure {fignum+1}: The specific spectral cut removes most of the blazar
+        types, including an apparent Galactic component while hardly changing the
+        UNID-PSR sources.
+        * Figure {fignum+2}: Of the known Galactic classes with a multi-degree 
+        scale height, only MSP and glc are candidates. 
+        """)    
+
+    def show_fp_vs_abs_b(self, fignum=7):    
+
+        show(f"""## Flux vs latitude for selected UNID-PSR sources
+        Here we select the selected UNID-PSR sources seen in Figure 3 
+        and look at the peak flux.
+        """)
+        show(self.fp_vs_abs_b(), fignum=fignum, caption="""Scatter plot of peak
+        flux vs. the absolute galactic latitude. The points with error bars are
+        the mean of the log flux.
+        """)
+        show("""This is a puzzle, which cannot be ascribed to threshold selection effect
+        near the Galactic plane.""")
 
     def forward(self):
         show(f"""
         ## The way forward
-        * Invite checks!
+        * Comments/suggestions on turning the above into a paper!
         * Refit with 4FGL-DR4 only, (maybe Jean can produce a new version without the curvature prior? There is always DR3)
-        * Estimate the fraction of MSPs, using Careful comparison of the curvature distributions
         * A section on previous ML results (Elizabeth)
         * A section on efforts to find associations (Kent)
-        * Hopefully speculation on narrow curved sources
+        * Hopefully speculation on the science behind curved sources narrower than pulsars (Kent? Matthew?)
         """)
 
 
 def main():
-
     self = Paper()
     show(self.setup_output)
     self.abstract()
     self.ml_summary()
-    
-    show(f"""## Curvature vs. $E_p$ for UNID
-    """)
-    fig, ax = plt.subplots(figsize=(10,8))
-    sns.scatterplot(self.df, ax=ax,x='log_epeak', y='curvature', hue='source type', 
-                    hue_order='UNID-BLL UNID-FSRQ UNID-PSR'.split(),
-                size='log_ts', sizes=(20,200),)# alpha=0.4)
-    x = np.log10([0.4, 0.4, 4, 4])
-    y = [2,0.5,0.5,2]
-    ax.plot(x, y, ls=':', color='k');
-    ax.set(xlabel='$E_p$ (GeV)',xticks=[-1,0,1,2], 
-        xticklabels='0.1 1 10 100'.split(), xlim=(-1.2,2.5))
-    plt.legend(fontsize=12)
-
-    show(fig, fignum=1, caption="""Curvature vs. $E_p$. Colors identify the ML prediction.
-    The dotted line encompasses most of the PSR prediction, defines the "spectral cut".
-    """)
-
-    elim=(0.4,4); fpmax=20; cmin=0.5
-    show(f"""### Application of the "spectral cut" to the source classes
-        Selection cuts: 
-        * curvature>{cmin}
-        * {elim[0]}< $E_p$ < {elim[1]} GeV  
-        * $F_p$ < {fpmax} eV s-1 cm-2
-        """)
-    show(self.examine_cuts(elim, fpmax))
-
-    show(f"""### Skymaps: UNID """)
-    show( ait_plots(self.df, 
-                    hue='source type', hue_order='UNID-FSRQ UNID-BLL UNID-PSR'.split(),
-                )  ,fignum=2, caption='Aitoff plots')
-    show(f"""### Skymaps: UNID after spectral cut""")
-    show( ait_plots(spectral_cut(self.df), 
-                    hue='source type', hue_order='UNID-FSRQ UNID-BLL UNID-PSR'.split(),
-                )  ,fignum=3, caption='Aitoff plots')
-
-    show(f"""### Skymaps: Associated after spectral cut """)
-    df = self.df.copy()
-    def sort_ided(st):
-        if st in 'MSP glc'.split(): return st
-        if st in 'bcu bll fsrq'.split(): return 'blazar'
-        return 'the rest'
-    df['st'] = df['source type'].apply(sort_ided)
-    show(
-        ait_plots(spectral_cut(df.query('association!="unid"')), 
-            hue='st', hue_order=('MSP', 'glc', 'blazar','the rest') ),
-        fignum=4, caption='Aitoff plots')
-
-    show(""" ### Peak flux vs. $|b|$ """ )
-    show(self.fp_vs_abs_b(), fignum=5, caption="""$F_p$ vs. $|b|$.""")
-
+    self.show_prelim_dp_vs_ep(fignum=1)
+    self.show_skymaps(fignum=2)
+    self.show_sin_b(fignum=5)
+    self.show_dp_vs_ep( fignum=6)
+    self.show_fp_vs_abs_b(fignum=7)
     self.forward()
     return self

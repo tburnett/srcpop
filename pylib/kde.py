@@ -6,7 +6,7 @@ import pandas as pd
 class KDE:
     """ Select columns from dataframe, create kernel"""
     def __init__(self, data, x='x', y='y', 
-                reflectx=True):
+                reflectx=False):
         self.reflectx=reflectx
         self.dfxy = data.loc[:,(x,y)]
         x, y = self.dfxy.to_numpy().T
@@ -43,15 +43,16 @@ class KDE:
         ax.plot(x,y, 'k.', markersize=2)
        
     def plot(self, cmap='gist_earth_r', ax=None):
-        fig, ax = plt.subplots() if ax is None else (ax.figure, ax)
+        _, ax = plt.subplots() if ax is None else (ax.figure, ax)
         self.plot_map(cmap=cmap, ax=ax)
         self.plot_points(ax=ax)
 
     @classmethod
     def test(cls, n=2000):
+        """Should produce exactly the plot in the documentation
+          for `scipy.stats.gaussian_kde`"""
         def meas(n):
             m1 = np.random.normal(size=n)
             m2 = np.random.normal(scale=1/2, size=n)
             return pd.DataFrame.from_dict(dict(x=m1-m2, y=m1+m2, ))
-        self = cls(meas(n), reflectx=False)
-        self.plot() #cmap='viridis')
+        cls( meas(n) ).plot(cmap='gist_earth_r') 
