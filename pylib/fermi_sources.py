@@ -1,20 +1,31 @@
 """
 """
 import sys
+from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
 from astropy.coordinates import SkyCoord
 from pylib.ipynb_docgen import capture_hide, show
 from pylib.catalogs import UWcat, Fermi4FGL
 
-import seaborn as sns
 sns.set_theme(font_scale=1.25)
-plt.rcParams['font.size']=14
 
+def update_legend(ax, data, hue, **kwargs):
+    """ seaborn companion to insert counts in legend,
+    perhaps change location or font.
 
-from dataclasses import dataclass
+    """
+    if len(kwargs)>0:
+        plt.legend(**kwargs)
+    gs = data.groupby(hue).size()
+    leg = ax.get_legend()
+    for tobj in leg.get_texts():
+        text = tobj.get_text()
+        if text in gs.index:
+            tobj.set_text(f'({gs[text]}) {text}')
 
 @dataclass
 class FigNum:

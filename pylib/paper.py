@@ -1,25 +1,7 @@
 from pylib.curvature import *
-from pylib.kde import KDE
+from pylib.kde import KDE, Gaussian_kde
 
-# class HCUcut:
-#     def __init__(self, a=(-0.7,0.4), b=(0.7,1.5)):
-#         """ a,b -- 2-tuples for two points in log10(epeak) - curvature space
-#         defining a line
-#         """
-#         from numpy import linalg
-#         self.a = np.array(a)
-#         d = np.array(b)-self.a
-#         self.ref = d/linalg.norm(d)
-#     def perp(self, c):
-#         "Return signed perpendicular distance to the line"
-#         return float(np.cross(self.ref, np.array(c)-self.a))    
-#     def __call__(self, x):
-#         """Function of log10(Ep) returning a curvature defining the line"""
-#         return self.a[1] + (x-self.a[0]) * self.ref[1]/self.ref[0]
-#     def above(self, c):
-#         """Return True if c is above the line"""
-#         return c[1]>self(c[0])
-    
+   
 def spectral_cut(df, elim=(0.4,4), fpmax=20, cmin=0.5):
     show("""
          """)
@@ -31,9 +13,8 @@ def spectral_cut(df, elim=(0.4,4), fpmax=20, cmin=0.5):
    
   
 class Paper(Curvature):
-    def __init__(self, **kwargs):
-        super().__init__(title='Observation of a new gamma-ray source class',
-                         **kwargs)
+    def __init__(self,title='Observation of a new gamma-ray source class', **kwargs):
+        super().__init__(title=title,  **kwargs)
 
         df = self.df#[self.df.nbb<4].copy()
         df['log TS'] = np.log10(df.ts)
@@ -46,9 +27,6 @@ class Paper(Curvature):
             if class1=='glc': return 'glc'
             return rec.association
         df['source type']= df.apply(plike, axis=1)
-        # self.hcu_cut = HCUcut()
-        # df['HCU cut'] = df.apply(lambda row: self.hcu_cut.above((row.log_epeak, row.curvature)),axis=1)
-
         self.df=df
 
     def abstract(self):
@@ -68,7 +46,7 @@ class Paper(Curvature):
              significant spectral curvature, with peak energies in the range seen 
              in the pulsars used for training, and are clearly Galactic in spatial distribution. 
              But the distribution of curvatures and spectral peak energies is quite unlike that 
-             seen for pulsars, with curvatures extending well above those expected for pulsasrs.
+             seen for pulsars, with curvatures extending well above those expected for pulsars.
              We define a selection in the range
               of spectral parameters which almost all of these satisfy,  resulting in 617 total.
             Applying the same selection to each of the associated source classes we see that none of the 
@@ -77,7 +55,6 @@ class Paper(Curvature):
              While there may be some undetected pulsars in this set, we conclude that the
              majority must represent a new class of gamma-ray emitting sources.
         """)
-
 
     def examine_cuts(self, elim=(0.4,4), fpmax=20, cmin=0.5):
         all = self.df 
@@ -155,38 +132,38 @@ class Paper(Curvature):
         described in the text. The contours for a KDE estimation of the MSP density are also shown.
         """)
 
-        show(f"""
-        #### Using KDE to estimate MSP content of UNID-PSR
-        Using the KDE function derived from the $E_p$ vs. $d_p$, distributions, consider 
-        its distribution over the MSP and UNID-PSR subsets. Assuming that a component
-        of the UNID-PSR sources are undetected MSPs which would have a similar distribution,
-        we see from Figure {fignum+1} that the largest possible size is about four times the number currently
-        detected well under the latitude estimate of about the same number.
-        """)
+        # show(f"""
+        # #### Using KDE to estimate MSP content of UNID-PSR
+        # Using the KDE function derived from the $E_p$ vs. $d_p$, distributions, consider 
+        # its distribution over the MSP and UNID-PSR subsets. Assuming that a component
+        # of the UNID-PSR sources are undetected MSPs which would have a similar distribution,
+        # we see from Figure {fignum+1} that the largest possible size is about four times the number currently
+        # detected well under the latitude estimate of about the same number.
+        # """)
 
-        data= self.df[(df.log_epeak>-0.5) & (df.curvature>0.2)].copy()
-        source_type = data['source type']
-        data['log_d'] = np.log10(data.curvature.clip(1e-3,10))
-        msp_data = data[source_type=='MSP']  
-        x,y = 'log_epeak log_d'.split()
-        msp_kde = KDE(msp_data,  x=x, y=y,  reflectx=False)
-        
-        # msp_kde.plot()
-        
-        msp_cdf = msp_kde(msp_kde.dfxy.to_numpy().T)
-        unid_data = data[source_type=='UNID-PSR' ]  
-        unid_cdf = msp_kde(unid_data.loc[:,(x,y)].to_numpy().T)
-        hkw = dict(bins=np.linspace(0,1,11), histtype='step', density=False, lw=2 )
-        fig, ax = plt.subplots(figsize=(6,4))
-        ax.hist(msp_cdf, **hkw,  label='MSP');
-        ax.hist(unid_cdf, **hkw,   label='UNID-PSR')
-        ax.set(ylabel='Counts', xlabel = 'KDE probability', 
-            xlim=(0,1), xticks=np.arange(0,1.1,0.25))
-        ax.legend(); 
-        show(fig, fignum=fignum+1, caption=f"""Histogram of the KDE probability distribution 
-        derived from MSPs applied to MSPs and UNID-PSRs.
-        """)
+        # data= self.df[(df.log_epeak>-0.5) & (df.curvature>0.2)].copy()
+        # source_type = data['source type']
+        # data['log_d'] = np.log10(data.curvature.clip(1e-3,10))
+        # msp_data = data[source_type=='MSP']  
+        # x,y = 'log_epeak log_d'.split()
+        # msp_kde = KDE(msp_data,  x=x, y=y, )
 
+        
+        # # msp_kde.plot()
+        
+        # msp_cdf = msp_kde(msp_kde.dfxy.to_numpy().T)
+        # unid_data = data[source_type=='UNID-PSR' ]  
+        # unid_cdf = msp_kde(unid_data.loc[:,(x,y)].to_numpy().T)
+        # hkw = dict(bins=np.linspace(0,1,11), histtype='step', density=False, lw=2 )
+        # fig, ax = plt.subplots(figsize=(6,4))
+        # ax.hist(msp_cdf, **hkw,  label='MSP');
+        # ax.hist(unid_cdf, **hkw,   label='UNID-PSR')
+        # ax.set(ylabel='Counts', xlabel = 'KDE probability', 
+        #     xlim=(0,1), xticks=np.arange(0,1.1,0.25))
+        # ax.legend(); 
+        # show(fig, fignum=fignum+1, caption=f"""Histogram of the KDE probability distribution 
+        # derived from MSPs applied to MSPs and UNID-PSRs.
+        # """)
 
     def peak_position(self):
         hue_order='bll fsrq psr'.split()
@@ -357,6 +334,7 @@ class Paper(Curvature):
         * Features:  spectral peak parameters ( energy, flux, curvature), variability, energy flux
         * predictions: UNID -> (UNID-PSR, UNID-BLL, UNID-FSRQ)
         """)
+    
     def show_examine_cuts(self, elim=(0.4,4), fpmax=20, cmin=0.5):
         show(f"""### Application of the "spectral cut" to the source classes
             We subdivide the sources into the following ten subsets called "source types"
@@ -454,6 +432,98 @@ class Paper(Curvature):
         show("""This is a puzzle, which cannot be ascribed to threshold selection effect
         near the Galactic plane.""")
 
+    def show_kde_comparison(self, fignum=99):
+        
+        def kde_comparison(data, hue, vars, ax=None ):
+            
+            assert np.all(np.isin(vars, data.columns)), f'{vars} not all in data'
+            source_type = data[hue]
+            msp_data = data[source_type=='MSP']  
+            unid_data = data[source_type=='UNID-PSR' ] 
+            
+            # create KDE from the MSP data
+            kde = Gaussian_kde(msp_data, vars)
+        
+            # and apply it to each
+            msp_cdf = kde(msp_data) 
+            unid_cdf = kde(unid_data)
+        
+            #compare probability distributions
+            hkw = dict(bins=np.linspace(0, max(msp_cdf), 10), histtype='step', density=False, lw=2 )
+            ax.hist(msp_cdf, **hkw,  label='MSP');
+            ax.hist(unid_cdf, **hkw,   label='UNID-PSR')
+        
+            ## needs a msp_cdf defined for all data
+            # sns.histplot(data, x='msp_cdf', hue=hue, hue_order='MSP UNID-PSR'.split(),
+            #             element='step', hde=True, ax=ax)
+            ax.set(ylabel='Counts', xlabel = 'KDE probability', 
+                # xlim=(0,1), xticks=np.arange(0,1.1,0.25)
+                )
+            ax.legend()
+            return kde
+
+        show(f"""## KDE comparisons
+        The UNID-PSR data set surely contains undetected MSPs. Assuming that
+        they follow the same distributions in spectral characteristics and
+        locations, this comparison should allow an estimate of the fraction.
+        """)
+        data = self.df.query('-0.5<log_epeak<0.7 & curvature>0.2').copy()
+        data['log_dp'] = np.log10(data.curvature.clip(1e-3,12))
+        hue = 'source type'
+        
+        fig, ax = plt.subplots()
+        kde = kde_comparison(data, hue=hue, 
+                                vars='log_epeak log_dp glat glon'.split(),
+                                ax=ax)# 'log_epeak log_dp '.split())
+        update_legend(ax, data, hue)
+        show(f"""Run {kde} with MSP data""")
+        show(fig,fignum=fignum,
+            caption="""The MSP KDE probability distribution applied back to the
+        MSP data, and to the overlapping UNID-PSR data set.
+        """)
+    
+    def show_msp_estimate(self, fignum, vars='log_epeak log_dp glat glon'.split(),
+                 spectral_cut='-0.5<log_epeak<0.7 & curvature>0.2', pmin=0.6):
+
+        def do_kde(data, hue='source type', hue_order='MSP UNID-PSR'.split(), vars=vars ):
+            from pylib.kde import apply_kde
+            data['log_dp'] = np.log10(data.curvature.clip(1e-3,12))
+            data['msp_cdf'] = apply_kde(data,hue=hue, hue_value='MSP',vars=vars)
+            fig, ax = plt.subplots(figsize=(7,5))
+            sns.histplot(data, x='msp_cdf', hue=hue, hue_order=hue_order,
+                        element='step', bins=np.arange(0,1.1,0.1),kde=True,log_scale=(False, True), ax=ax)
+            update_legend(ax, data, hue,)
+            ax.set(ylabel='Counts', xlabel = 'MSP KDE probability', 
+                xlim=(0,1), xticks=np.arange(0,1.1,0.25), ylim=(0.5,None),
+                )
+            return fig
+        show(f"""## KDE analysis -- how many MSPs?
+        Here we applly the spectral cut "{spectral_cut}" and then
+        calculate the KDE proability distribution using the variables {vars} with the MSP subset.
+        Then we plot below histograms of this distribution for the MSP and UNID_PSR subsets 
+        satisfying the spectral cut.
+        """)
+        cut_data = self.df.query(spectral_cut).copy()
+        show(
+            do_kde(data=cut_data),
+            fignum=fignum,
+            caption="""Histograms of the MSP KDE probablilty, with KDE interpolations, for the 
+            MSP and UNID-PSR data sets'
+            """)
+        show(f"""
+        """)
+        
+        all = cut_data.groupby('source type').size()
+        a,b = all['UNID-PSR'], all['MSP']
+        cut = cut_data.query(f'msp_cdf>{pmin}').groupby('source type').size()
+        c,d = cut['UNID-PSR'], cut['MSP']
+        show(f"""Let's assume that all UNID-PSR sources with a MSP probability>{100*pmin:.0f}% are actually
+        MSPs, since the two curves maintain a constant ratio above that. We make an estimate of the undetected MSP content in UNID-PSR with 
+        the ratio of the number of UNID-PSR sources above {100*pmin:.0f}% MSP probability to the
+        number of such MSP sources: {c}/{d} = {c/d:.1f}. This implies that {c/d * b:.0f} of the
+        {a} UNID-MSP  sources are MSPs, leaving {a-c/d * b:.0f}.
+        """)
+
     def forward(self):
         show(f"""
         ## The way forward
@@ -474,6 +544,7 @@ def main():
     self.show_skymaps(fignum=2)
     self.show_sin_b(fignum=5)
     self.show_dp_vs_ep( fignum=6)
-    self.show_fp_vs_abs_b(fignum=7)
+    self.show_kde_comparison(fignum=7)
+    self.show_fp_vs_abs_b(fignum=8)
     self.forward()
     return self
