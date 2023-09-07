@@ -19,7 +19,7 @@ def update_legend(ax, data, hue, **kwargs):
 
     """
     if len(kwargs)>0:
-        plt.legend(**kwargs)
+        ax.legend(**kwargs)
     gs = data.groupby(hue).size()
     leg = ax.get_legend()
     for tobj in leg.get_texts():

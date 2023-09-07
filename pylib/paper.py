@@ -10,10 +10,12 @@ def spectral_cut(df, elim=(0.4,4), fpmax=20, cmin=0.5):
             & (df.log_epeak < np.log10(elim[1]) )
             & (df.log_fpeak < np.log10(fpmax)   ) 
             ]
-   
+
+def gaia():
+    return 'https://cdn.mos.cms.futurecdn.net/wBVSwWbqdMW4EK3qfSuZUR.jpg'
   
 class Paper(Curvature):
-    def __init__(self,title='Observation of a new gamma-ray source class', **kwargs):
+    def __init__(self,title='Evidence for a new gamma-ray source class', **kwargs):
         super().__init__(title=title,  **kwargs)
 
         df = self.df#[self.df.nbb<4].copy()
@@ -45,15 +47,15 @@ class Paper(Curvature):
              variability measure. The UNID sources predicted to be pulsars have 
              significant spectral curvature, with peak energies in the range seen 
              in the pulsars used for training, and are clearly Galactic in spatial distribution. 
-             But the distribution of curvatures and spectral peak energies is quite unlike that 
-             seen for pulsars, with curvatures extending well above those expected for pulsars.
+             But the distribution of curvatures and spectral peak energies is unlike that 
+             seen for pulsars, with curvatures extending well above those oberved for pulsars.
              We define a selection in the range
-              of spectral parameters which almost all of these satisfy,  resulting in 617 total.
-            Applying the same selection to each of the associated source classes we see that none of the 
+             of spectral parameters which almost all of these satisfy,  resulting in 617 total.
+             Applying the same selection to each of the associated source classes we see that none of the 
              resulting spatial distributions are consistent, the closest being 
              millisecond pulsars (94) and Galactic clusters (19). 
-             While there may be some undetected pulsars in this set, we conclude that the
-             majority must represent a new class of gamma-ray emitting sources.
+             While there may be undetected pulsars in this set, we conclude that the
+             majority can only be accounted for by a new class of gamma-ray emitting sources.
         """)
 
     def examine_cuts(self, elim=(0.4,4), fpmax=20, cmin=0.5):
@@ -131,39 +133,6 @@ class Paper(Curvature):
         electrons, while the inclined solid line corresponds to a study of correlation of $d_p$ and $E_p$ 
         described in the text. The contours for a KDE estimation of the MSP density are also shown.
         """)
-
-        # show(f"""
-        # #### Using KDE to estimate MSP content of UNID-PSR
-        # Using the KDE function derived from the $E_p$ vs. $d_p$, distributions, consider 
-        # its distribution over the MSP and UNID-PSR subsets. Assuming that a component
-        # of the UNID-PSR sources are undetected MSPs which would have a similar distribution,
-        # we see from Figure {fignum+1} that the largest possible size is about four times the number currently
-        # detected well under the latitude estimate of about the same number.
-        # """)
-
-        # data= self.df[(df.log_epeak>-0.5) & (df.curvature>0.2)].copy()
-        # source_type = data['source type']
-        # data['log_d'] = np.log10(data.curvature.clip(1e-3,10))
-        # msp_data = data[source_type=='MSP']  
-        # x,y = 'log_epeak log_d'.split()
-        # msp_kde = KDE(msp_data,  x=x, y=y, )
-
-        
-        # # msp_kde.plot()
-        
-        # msp_cdf = msp_kde(msp_kde.dfxy.to_numpy().T)
-        # unid_data = data[source_type=='UNID-PSR' ]  
-        # unid_cdf = msp_kde(unid_data.loc[:,(x,y)].to_numpy().T)
-        # hkw = dict(bins=np.linspace(0,1,11), histtype='step', density=False, lw=2 )
-        # fig, ax = plt.subplots(figsize=(6,4))
-        # ax.hist(msp_cdf, **hkw,  label='MSP');
-        # ax.hist(unid_cdf, **hkw,   label='UNID-PSR')
-        # ax.set(ylabel='Counts', xlabel = 'KDE probability', 
-        #     xlim=(0,1), xticks=np.arange(0,1.1,0.25))
-        # ax.legend(); 
-        # show(fig, fignum=fignum+1, caption=f"""Histogram of the KDE probability distribution 
-        # derived from MSPs applied to MSPs and UNID-PSRs.
-        # """)
 
     def peak_position(self):
         hue_order='bll fsrq psr'.split()
