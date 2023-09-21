@@ -14,18 +14,21 @@ def pulsar_curvature(logE_p):
 class Summary(Paper):
 
     def __init__(self, summary_file='files/summary.csv', *pars, **kwargs):
-        if Path(summary_file).exists():
+        if summary_file is not None and Path(summary_file).exists():
+            show(f'# {kwargs.pop("title", "")}')
+            show_date()
             self.df = pd.read_csv(summary_file, index_col=0)
             # make log10 columns
-            log_list = dict(Ep='log_epeak',Fp='log_fpeak', curvature='log_dp', ts='log TS')
+            log_list = dict(Ep='log_epeak',Fp='log_fpeak', ts='log TS')
             for k,v in log_list.items():
-                self.df[v]= np.log10(self.df[k])                            
+                self.df[v]= np.log10(self.df[k])      
+            self.df['abs_sin_b']= np.abs(np.sin(np.radians(self.df.glat)))                      
             show(f'* Read file `{summary_file}` with {len(self.df)} sources.')
         else:
             super().__init__(*pars, **kwargs)
             self.spectral_selection()
-        self.hue_kw =dict(hue='source type', hue_order='UNID-PSR MSP'.split(),
-                 palette='green red'.split())
+        self.hue_kw =dict(hue='source type', hue_order='UNID-PSR MSP young'.split(),
+                 palette='green red blue'.split())
         
 
     def save(self, summary_file):

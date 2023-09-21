@@ -55,7 +55,7 @@ def show_date():
 
 @dataclass
 class MLspec:
-    features: tuple = tuple("""log_var log_fpeak log_epeak curvature """.split())
+    features: tuple = tuple("""log_var log_fpeak log_epeak d """.split())
 
     target : str ='association'
     target_names:tuple = tuple('bll fsrq psr'.split())
@@ -91,8 +91,6 @@ class FermiSources:
             print(f"""Read {len(t)} source entries from `{datafile}`, selected {len(df)} with criteria '{selection}'""")  
 
 
-
-
         # descriptive rename and clean
         df.rename(columns=dict(singlat='sin_b', eflux100='eflux', variability='var',
                                category='association'),inplace=True)
@@ -107,10 +105,19 @@ class FermiSources:
         df.loc[:,'abs_sin_b'] = np.abs(df.sin_b)
 
         # add log epeak, need lookup 
-        sfl = SpecFunLookup(df) #[unid.index[1]]
-        specfun = pd.Series(dict([ (idx,sfl[idx]) for idx in df.index]))
-        df.loc[:,'log_epeak'] = specfun.apply(lambda f: f.sedfun.peak)
-        df['log_fpeak'] = specfun.apply(lambda f: f.fpeak)
+
+        # sfl = SpecFunLookup(df) #[unid.index[1]]
+        # specfun = pd.Series(dict([ (idx,sfl[idx]) for idx in df.index]))
+        # df.loc[:,'log_epeak'] = specfun.apply(lambda f: f.sedfun.peak)
+        # df['log_fpeak'] = specfun.apply(lambda f: f.fpeak)
+
+        dr4 = self.fermicat #Fermi4FGL('dr4') #could be dr3
+        df['sf'] = [dr4.get_specfunc(name, 'LP') for name in df.index]
+
+        df['d']  = df.sf.apply(lambda f: f.curvature()).clip(-0.1,2)
+        df['log_epeak'] = df.sf.apply(lambda f: f.epeak)
+        df['log_fpeak'] = df.sf.apply(lambda f: f.fpeak)
+        self.df = df[~ pd.isna(df.d)].copy() # remove bad value(s)
 
         self.mlspec = MLspec() if mlspec is None else mlspec  # default for classification
 
@@ -193,6 +200,29 @@ class FermiSources:
         X,y = self.getXy(mlspec) 
         return model.fit(X,y)
 
+    def write_summary(self, summary_file = 'files/summary.csv', overwrite=True):
+        from pathlib import Path
+        def plike(rec):
+            class1 = rec.class1.lower() if not pd.isna(rec.class1) else np.nan
+            if not pd.isna(class1) and class1 in ('msp','psr'): 
+                return dict(msp='MSP', psr='young')[class1]
+            if rec.association=='unid': return 'UNID-'+ rec.prediction.upper()
+            if class1=='glc': return 'glc'
+            return rec.association
+
+
+        if not Path(summary_file).is_file() or overwrite:
+            show(f'## Write summary to `{summary_file}`')
+            df = self.df.copy()
+            df['Ep'] = np.power(10, df.log_epeak)
+            df['Fp'] = np.power(10, df.log_fpeak)
+            df['source type']= df.apply(plike, axis=1)
+            cols='glon glat ts r95 d Fp Ep'.split()+['source type']
+            rows = np.isin(df['source type'].values, 'UNID-PSR young MSP'.split())
+            df.loc[rows, cols].to_csv(summary_file, float_format='%.3f' )
+        else:
+            show(f'### File `{summary_file}` exists--not overwriting.')
+
     def predict(self, query=None):
         """Return a "prediction" vector using the classifier, required to be a trained model
 
@@ -230,8 +260,15 @@ class FermiSources:
             return F(**kw)
         
         model = get_model(model_name)
-        self.classifier = self.fit( model )
-        self.df.loc[:,'prediction'] = self.predict()
+        try:
+            self.classifier = self.fit( model )
+        except ValueError as err:
+            print(f"""Bad data? {err}""")
+            print(self.df.loc[:,self.mlspec.features].describe())
+            return
+                  
+
+        self.df['prediction'] = self.predict()
 
         if show_confusion:
             self.confusion_display(model=model, hide=hide)
@@ -303,35 +340,31 @@ class FermiSources:
             ax.set_title(title)
         show(fig, summary=None if not hide else 'Confusion matrix plot')
 
-    def scatter_train_predict(self,  x,y,fignum=None, caption='', target='unid', **kwargs):
+    def scatter_train_predict(self,  x,y, fignum=None, caption='', target='unid', **kwargs):
         
-        fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,6),
+        fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(20,10),
                                     sharex=True,sharey=True,
-                                    gridspec_kw=dict(wspace=0.2))
+                                    gridspec_kw=dict(wspace=0.1))
 
-        target_names = self.mlspec.target_names
+        size_kw = dict(size='log_eflux', sizes=(20,150),size_norm=(-12,-10))
+        hue_kw = lambda what: dict(hue_order=self.mlspec.target_names, hue =what)
         df = self.df
 
-        kw = dict()
-        kw.update(kwargs)
-
+        ax1.set(**kwargs)
         ax1.set_title('Training')
         ax2.set_title(f'{target} prediction')
-        sns.scatterplot(self.train_df, x=x, y=y, 
-                        hue_order=target_names, hue='association', ax=ax1)
-        ax1.set(ylabel='Spectral curvature', **kw)
-        ax1.legend(loc='upper right')
+        sns.scatterplot(self.train_df, x=x, y=y,  **hue_kw('association'), **size_kw,  ax=ax1)
+        ax1.legend(loc='upper right', fontsize=12)
+        update_legend(ax1, self.train_df, hue=hue_kw('association')['hue'])
 
         target_df = df.query(f'association=="{target}"')
         assert len(target_df)>0, f'Failed to find target {target}'
-        sns.scatterplot(target_df, x=x, y=y,  
-                        hue_order=target_names, hue='prediction', ax=ax2)
-        ax2.legend(loc='upper right')
-        ax2.set(**kw)
-        ax2.set(xlabel = kw['xlabel']) #
-        show(f'Labels? {ax1.get_xlabel()}, {ax2.get_xlabel()}')
+        sns.scatterplot(target_df, x=x, y=y,  **hue_kw('prediction'), **size_kw,   ax=ax2)
+        ax2.legend(loc='upper right',fontsize=12)
+        ax2.set(xlabel=ax1.get_xlabel())
+        update_legend(ax2, target_df, hue = hue_kw('prediction')['hue'] )
         
-        fig.text(0.51, 0.5, '⇨', fontsize=50, ha='center')
+        fig.text(0.514, 0.5, '⇨', fontsize=50, ha='center')
         show(fig, fignum=fignum, caption=caption)
 
     def curvature_epeak_flux(self, fignum=None):
@@ -457,7 +490,7 @@ class SEDplotter:
         name = src.name
         if name not in self.fcat.index: name+='c' # cloud ??
         fcatf = self.fgl_plec(name) if self.plec else \
-                self.fcat.loc[name,'specfunc']
+                self.fcat.get_specfunc(name, 'LP')
             
         # except:
         #     fcatf = None

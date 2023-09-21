@@ -81,9 +81,10 @@ class FluxModel():
         sf = SedFun(self)
         return sf(sf.peak)
     
-    def sed_plot(self, ax=None, e0=None,
+    def sed_plot(self, ax=None, e0=None, plot_epeak=False,
              figsize=(5,4), label='', plot_kw={}, **kwargs):
         """Make an SED for the source
+        - e0, epeak -- lot
         - plot_kw -- for the plot command (lw,ls,color, etc.) 
         - kwargs -- for the Axes object (xlim, ylim, etc.)
         """
@@ -97,6 +98,8 @@ class FluxModel():
         lines=ax.loglog(*trans(x), label=label, **pkw)
         if e0 is not None:
             ax.plot(*trans(e0),'o', color=lines[0].get_color())
+        if plot_epeak:
+            ax.plot(*trans(10**self.epeak*1e3), 'ok')
         ax.grid(alpha=0.5)
         kw = dict(xlabel='Energy (GeV)',
                   ylabel=r'$\mathrm{Energy\ Flux\ (eV\ cm^{-2}\ s^{-1})}$',
@@ -165,7 +168,7 @@ class FluxModel():
         
     def curvature(self, e=None):
         """return estimate of the curvature, using numerical derivatives
-        This is exactly the parameter beta for a LogParabola 
+        This is the 2 times the parameter beta for a LogParabola 
         e: float
             energy in Mev, default e0
         """
@@ -178,7 +181,7 @@ class FluxModel():
             return derivative(fun,x, dx=0.01)/fun(x)
         x=0 if e is None else np.log(self.e0/e)
 
-        return -0.5*derivative(lambda x: dfun(x), x, dx=0.01)
+        return -derivative(lambda x: dfun(x), x, dx=0.01)
 
 
 class PowerLaw(FluxModel):

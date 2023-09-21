@@ -1,4 +1,4 @@
-""" Access catalogs as dataframes 
+""" Access catalogs as DataFrames 
 """
 import os, sys, glob
 import numpy as np
@@ -276,7 +276,9 @@ class Fermi4FGL(CatDF, pd.DataFrame):
         cname= lambda n : [s.strip() for s in data[n]]
         cvar = lambda a: data[a].astype(float)
         ivar = lambda a: data[a].astype(int)
-        name = list(map(lambda x: x.strip() , data['Source_Name']))
+
+        # the index--strip off trailing "c" 
+        name = list(map(lambda x: x.strip()[:17] , data['Source_Name']))
 
         # calculate these first
         funcs = self.specfuncs(data)

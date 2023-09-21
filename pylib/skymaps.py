@@ -13,15 +13,15 @@ import healpy
 #| export
 def _process_args(*args):
     """ 
-    Helper for map displays position specifictio
-    Expect  args to contain:
-    * a SkyCoord object (perhaps a list of positions)
+    Helper for map displays position specification
+    Expect args to be one of:
+    * a SkyCoord object (which is perhaps a list of positions)
     * lists of l, b in degrees
-    * a DataFrame with glon and glat columns
-    * The name of a source   
+    * a DataFrame with `glon` and `glat` columns
+    * The name of a source known to SkyCoord  
 
-    Returns a SkyCoord object and the remaining args
-    Subsequently will convert to radians for AIT or pixels for ZEA. 
+    Returns a SkyCoord object using the first or first two args, and the remaining args
+    Subsequently expect to convert to radians for AIT or pixels for ZEA. 
     """
         
     if len(args)==0: raise ValueError('No args')
@@ -61,21 +61,24 @@ class AitoffFigure():
     """ Implement plot and text conversion from (l,b) in degrees, or a SkyCoord.
 
     """
-    def __init__(self, fig=None, figsize=(10,5), **kwargs):
+    def __init__(self, fig=None, figsize=(10,5), grid_color='grey', **kwargs):
         self.fig = fig or plt.figure(figsize=figsize)
         if len(self.fig.axes)==0:
             ax=self.fig.add_subplot(111, projection='aitoff')
             ax.set(xticklabels=[], yticklabels=[], visible=True)
             ax.grid(color='grey')
         self.ax = self.fig.axes[0]
+
         assert self.ax.__class__.__name__.startswith('Aitoff'), 'expect figure to have aitoff Axes instance'
+        if grid_color is not None:
+            self.ax.grid(color=grid_color)
         self.ax.set(**kwargs)
 
     def plot(self, *args, **kwargs):
-        self.ax.plot(*_to_radians(*args), **kwargs)
+        return self.ax.plot(*_to_radians(*args), **kwargs)
 
     def text(self, *args, **kwargs):
-        self.ax.text(*_to_radians(*args), **kwargs)
+        return self.ax.text(*_to_radians(*args), **kwargs)
 
     def scatter(self, *args, **kwargs):
         return self.ax.scatter(*_to_radians(*args), **kwargs)
@@ -279,10 +282,11 @@ class SquareWCS(WCS):
     
 class ZEAaxis:
     """
-    Wraps WCSaxis
+    Wraps WCSaxis to intercept plot, scatter and text
 
     """
     def __init__(self, ax):
+        # ax is a WCSaxis object
         self.ax= ax
 
     def _to_pixel(self, *args):
@@ -354,17 +358,15 @@ class HPmap(object):
         return ait_plot(self, **kw)
 
         
-    def zea_plot(self, *args, size=10, pixsize=0.1, 
+    def zea_plot(self, *args, size=10, pixelsize=0.1, 
                 fig=None, figsize=(8,8), **kwargs):
         """
-        Create a SquareWCS object that defines its WCS as a ZEA square centered on `skycoord`, which can be a source name.
-        Return the ZEAaxes object
+        Create a SquareWCS object that defines its WCS as a ZEA square centered on the position given by `args`, 
+        which can be a source name.
+        Return the ZEAaxis object for plotting
         """
-        sc, rest = _process_args(*args)
-        
-        # if not isinstance(skycoord, SkyCoord):
-        #     skycoord = SkyCoord.from_name(skycoord).galactic
-        swcs = SquareWCS(sc, size, pixsize)
+        sc, _ = _process_args(*args)
+        swcs = SquareWCS(sc, size, pixelsize)
         return ZEAaxis(
             swcs.plot_map(self.map, unit=self.unit, fig=fig, figsize=figsize, **kwargs)
         )
@@ -388,7 +390,7 @@ class HPmap(object):
             nside=self.nside
             )
 
-    def to_FITS(self,  filename=''):
+    def to_FITS(self,  filename=''): 
         """return a HDUlist object with one skymap column
 
         - filename [''] write to the file if set
@@ -425,6 +427,6 @@ class HPmap(object):
     def from_FITS(cls, filename, field=0, *pars, **kwargs):
         with fits.open(filename) as hdus:
             header, data = hdus[1].header, hdus[1].data
-        kw = dict(unit=header.get('TUNIT1', ''), name=header['TTYPE1'])
+        kw = dict(unit=header.get(f'BUNIT', ''), name=header.get(f'TTYPE{field+1}', ''))
         kw.update(**kwargs)
         return cls(data.field(field), *pars, **kw)

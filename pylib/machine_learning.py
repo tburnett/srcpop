@@ -10,6 +10,7 @@ class ML(FermiSources):
         show('# '+title)
         show_date()
         super().__init__(*pars, **kwargs)
+        return
         fcat = self.fermicat 
         self.df.loc[:,'sgu'] = fcat['flags'].apply(lambda f: f[14])
         self.df.loc[:,'fcat_epeak'] = fcat.specfunc.apply(lambda f: f.sedfun.peak)
@@ -204,7 +205,7 @@ def main():
     self.train_predict(show_confusion=True)
     self.show_prediction_association(fignum=fn.next)
     self.curvature_epeak_flux(fignum=fn.next); fn.next
-    self.show_sgus(fignum=fn.next)
+    # self.show_sgus(fignum=fn.next)
     self.show_notes()
 
 import sys
