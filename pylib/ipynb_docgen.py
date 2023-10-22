@@ -249,6 +249,7 @@ class FigureWrapper(Wrapper):
         self.base64 = kwargs.pop('base64', getattr(self.obj, 'base64', True))
         self.caption = kwargs.pop('caption', None)
         self.fignum = kwargs.pop('fignum', None)
+        self.facecolor = kwargs.pop('facecolor', None)
         self.show_fig_number = kwargs.pop('show_fig_number', self.fignum is not None)
         self.fig = fig = self.obj
         self.tooltips=None
@@ -313,7 +314,7 @@ class FigureWrapper(Wrapper):
                 fig.set_size_inches(size_inches*width/wpix)
             # use IPython tool to create the base64 string for the image -- but seem to need to strip trailing NL ?
             # bbox_inches mod if using tool tips to keep pixel coordinates
-            b64 = pylabtools.print_figure(fig, base64=True, facecolor='white',
+            b64 = pylabtools.print_figure(fig, base64=True, facecolor=self.facecolor,
                                           bbox_inches=None if self.tooltips is not None else 'tight')#[:-1]
         else:
             b64 = fig.get_base64() 
@@ -344,7 +345,7 @@ class FigureWrapper(Wrapper):
             f'{themap}'\
             f'<a id="Figure_{self.fignum}"/>'\
             f'<figure style="margin-left: {self.indent}">'\
-            f'   <img src="data:image/png;base64,{b64}" {usemap} title="Figure {self.fignum}">'\
+            f'   <img src="data:image/png;base64,{b64}" {usemap} >'\
             f' <br> {figcaption}' \
              '</figure>'
         return html

@@ -103,36 +103,66 @@ class Paper(Curvature):
         if legend=='auto': plt.legend(fontsize=12, loc='lower left', bbox_to_anchor=(0.88,0.4));
         return fig
 
-    def show_dp_vs_ep(self, fignum):
+    # def show_dp_vs_ep(self, fignum):
 
-        df = self.df.copy()
-        # hc = HCUcut()
-        # df['perp'] = df.apply(lambda row: HCUcut().perp((row.log_epeak,row.curvature)), axis=1)
+    #     df = self.df.copy()
+    #     # hc = HCUcut()
+    #     # df['perp'] = df.apply(lambda row: HCUcut().perp((row.log_epeak,row.curvature)), axis=1)
         
-        df['log TS'] = np.log10(df.ts)
-        show(f"""## Analysis of curvature vs. peak energy
-        For MSPs, the spectral curvature is  correlated with the
-        peak energy, a consequence of $\dot{{E}}$ evolution. 
-        Specifically it was shown that $E_p = 1.1\ \mathrm{{GeV}} (d_p/0.46)^{{1.33}}$ within 30%. [3PC paper]. 
+    #     df['log TS'] = np.log10(df.ts)
+    #     show(f"""## Analysis of curvature vs. peak energy
+    #     For MSPs, the spectral curvature is  correlated with the
+    #     peak energy, a consequence of $\dot{{E}}$ evolution. 
+    #     Specifically it was shown that $E_p = 1.1\ \mathrm{{GeV}} (d_p/0.46)^{{1.33}}$ within 30%. [3PC paper]. 
 
-        In Figure {fignum} we show such a plot for MSPs, with the UNID-PSR and glc subsets overlayed
-        for comparison. 
-        """)
-        fig, ax =plt.subplots(figsize=(10,6))
-        fig = self.d_vs_ep( ax=ax, hue_order='UNID-PSR MSP glc'.split(),)
-        # show(fig, hue_order='UNID-PSR MSP glc'.split(), ax=ax), 
-        #      fignum=1, caption="""Curvature $d$ vs.$E_p$. The dotted line
-        #      is an arbitrary reference to separate MSPs.
-        #      """)
-        f = lambda x:  0.75 * ( x - np.log10(1.1)) + np.log10(0.46) 
-        xx = np.array([-1,1])
-        ax.plot(xx, f(xx), 'k'); #ax.plot( np.log10(1.1), np.log10(0.46), 'd', markersize=30);
-        ax.axhline(np.log10(4/3), ls='--', color='k');
-        show(fig, fignum=fignum, caption=f"""Dependence of the spectral curvature on peak energy.
-        The horizontal dashed line is at 4/3, the value for the curvature radiation from monoenergetic 
-        electrons, while the inclined solid line corresponds to a study of correlation of $d_p$ and $E_p$ 
-        described in the text. The contours for a KDE estimation of the MSP density are also shown.
-        """)
+    #     In Figure {fignum} we show such a plot for MSPs, with the UNID-PSR and glc subsets overlayed
+    #     for comparison. 
+    #     """)
+    #     fig, ax =plt.subplots(figsize=(10,6))
+    #     fig = self.d_vs_ep( ax=ax, hue_order='UNID-PSR MSP glc'.split(),)
+    #     # show(fig, hue_order='UNID-PSR MSP glc'.split(), ax=ax), 
+    #     #      fignum=1, caption="""Curvature $d$ vs.$E_p$. The dotted line
+    #     #      is an arbitrary reference to separate MSPs.
+    #     #      """)
+    #     f = lambda x:  0.75 * ( x - np.log10(1.1)) + np.log10(0.46) 
+    #     xx = np.array([-1,1])
+    #     ax.plot(xx, f(xx), 'k'); #ax.plot( np.log10(1.1), np.log10(0.46), 'd', markersize=30);
+    #     ax.axhline(np.log10(4/3), ls='--', color='k');
+    #     show(fig, fignum=fignum, caption=f"""Dependence of the spectral curvature on peak energy.
+    #     The horizontal dashed line is at 4/3, the value for the curvature radiation from monoenergetic 
+    #     electrons, while the inclined solid line corresponds to a study of correlation of $d_p$ and $E_p$ 
+    #     described in the text. The contours for a KDE estimation of the MSP density are also shown.
+    #     """)
+
+    def show_d_vs_ep(self, df, xy='log_epeak d'.split(), hue_kw={} ):
+        show(f""" ## Curvature vs peak energy for pulsar-like sources""")
+        # fig, ax = plt.subplots(figsize=(15,8))
+        data=df
+        x,y =  xy
+        g = sns.JointGrid(height=12, ratio=4 )
+        ax = g.ax_joint
+        size_kw = dict(size='log TS', sizes=(20,200) )
+        hkw = self.hue_kw
+        hkw.update(hue_kw)
+        sns.scatterplot(data, ax=ax, x=x,y=y, **hkw, **size_kw);
+        axis_kw= lambda a, label, v: {
+            f'{a}label':label,f'{a}ticks':np.log10(v), f'{a}ticklabels':v }
+        
+        ax.set(**axis_kw('x','$E_p$ (GeV)', [0.1, 0.25,0.5,1,2,4]), 
+            yticks=np.arange(0,1.51, 0.5), ylim=(-0.1,2), 
+            xlim=np.log10((0.08, 5)) )
+        ax.axhline(0, color='grey')
+        ax.axhline(4/3, color='orange', ls='--')
+        xx = np.linspace(-1,np.log10(5)); xx
+        # ax.plot(xx, 10**(pulsar_curvature(xx)), 'orange', ls='--');
+        
+        hkw = dict(element='step', kde=True, bins=25, **self.hue_kw,
+                legend=False)
+        sns.histplot(data, y=y, ax=g.ax_marg_y, **hkw)
+        sns.histplot(data, x=x, ax=g.ax_marg_x, **hkw)
+        
+        update_legend(ax, df, hue='source type',  fontsize=12, loc='upper left', )
+        show(g.fig)
 
     def peak_position(self):
         hue_order='bll fsrq psr'.split()

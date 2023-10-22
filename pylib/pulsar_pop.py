@@ -413,7 +413,7 @@ def main():
     warnings.filterwarnings("ignore")
     
     data = select_data()
-    sns.set_context('talk')
+    # sns.set_context('talk')
     corner(data, fignum=1)
     show(f"""
     ## Three source categories 
@@ -436,5 +436,5 @@ if len(sys.argv)>1:
 
 else:    
     data = select_data(quiet=True)
-    sns.set_context('talk')
+    # sns.set_context('talk')
 

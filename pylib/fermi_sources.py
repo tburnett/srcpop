@@ -6,12 +6,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+if 'dark' in sys.argv:
+    plt.style.use('dark_background') #s
+    plt.rcParams['grid.color']='0.5'
+    dark_mode=True
+spectral_model='uw'if 'uw' in sys.argv else 'fgl'
+
 
 from astropy.coordinates import SkyCoord
 from pylib.ipynb_docgen import capture_hide, show
 from pylib.catalogs import UWcat, Fermi4FGL
 
-sns.set_theme(font_scale=1.25)
+# sns.set_theme(font_scale=1.25)
 
 def update_legend(ax, data, hue, **kwargs):
     """ seaborn companion to insert counts in legend,
@@ -75,21 +81,25 @@ class FermiSources:
     
     def __init__(self, datafile='files/fermi_sources_v2.csv',
                 mlspec=None,
+                model=None, #'fgl', #which model to use: fgl or uw
                 fgl='dr4',
-                selection='delta<0.25 & curvature<2.1'):
-        
+                selection='delta<0.25'):
+        self.model=model if model is not None else spectral_model
         t = pd.read_csv(datafile, index_col=0 )
         t.curvature *=2 # temporary fix to be "spectral curvature" here
+        # split 'unk' from 'other' ins association columns
+        # t['association'] = t.apply(lambda row: row.association if row.class1!='unk' else 'unk', axis=1)
 
         with capture_hide('setup printout') as self.setup_output:
+            print(f'Selected spectral model {fgl if model=="fgl" else "UW"}')
             self.fcat_version=fgl
             self.fermicat = Fermi4FGL(fgl); 
             self.uwcat = UWcat().set_index('jname')
             # look up the beta uncertainty from the UW cat
-            t['d_unc'] = 2*self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
+            # t['d_unc'] = 2*self.uwcat.errs.apply(lambda s: np.array(s[1:-1].split(), float)[2])
             self.df = df = t.query(selection).copy()
             print(f"""Read {len(t)} source entries from `{datafile}`, selected {len(df)} with criteria '{selection}'""")  
-
+            df['uw_sed'] = self.uwcat.loc[df.uw_name].specfunc.values
 
         # descriptive rename and clean
         df.rename(columns=dict(singlat='sin_b', eflux100='eflux', variability='var',
@@ -104,22 +114,24 @@ class FermiSources:
         df.loc[:,'log_ts']    = np.log10(df.ts.clip(25,3316))
         df.loc[:,'abs_sin_b'] = np.abs(df.sin_b)
 
-        # add log epeak, need lookup 
-
-        # sfl = SpecFunLookup(df) #[unid.index[1]]
-        # specfun = pd.Series(dict([ (idx,sfl[idx]) for idx in df.index]))
-        # df.loc[:,'log_epeak'] = specfun.apply(lambda f: f.sedfun.peak)
-        # df['log_fpeak'] = specfun.apply(lambda f: f.fpeak)
+        def set_sed_pars( sed, prefix=''):
+            sed = df[sed]
+            df[prefix+'d']  =        sed.apply(lambda f: f.curvature()).clip(-0.1,2)
+            df[prefix+'log_epeak'] = sed.apply(lambda f: f.epeak)
+            df[prefix+'log_fpeak'] = sed.apply(lambda f: f.fpeak)
 
         dr4 = self.fermicat #Fermi4FGL('dr4') #could be dr3
         df['sf'] = [dr4.get_specfunc(name, 'LP') for name in df.index]
+        df['uw_sed'] = self.uwcat.loc[df.uw_name].specfunc.values
+ 
+        set_sed_pars('sf', 'fgl_')
+        set_sed_pars('uw_sed', 'uw_')
+        self.df = df[~ pd.isna(df.fgl_d)].copy() # remove bad value(s)
 
-        df['d']  = df.sf.apply(lambda f: f.curvature()).clip(-0.1,2)
-        df['log_epeak'] = df.sf.apply(lambda f: f.epeak)
-        df['log_fpeak'] = df.sf.apply(lambda f: f.fpeak)
-        self.df = df[~ pd.isna(df.d)].copy() # remove bad value(s)
+        self.mlspec = MLspec(
+            features=['log_var'] + [self.model+'_'+x for x in 'd log_fpeak log_epeak'.split()])
 
-        self.mlspec = MLspec() if mlspec is None else mlspec  # default for classification
+        self.palette='yellow magenta cyan'.split()#, edgecolor=None
 
     def show_data(self):
         """ Make a summary of the """
@@ -133,18 +145,15 @@ class FermiSources:
         show(r"""
             | Feature   | Description 
             |-------    | ----------- 
-            |`eflux`    | Energy flux for E>100 Mev, in erg cm-2 s-1 
-            |`pindex`   | Spectral index (problematical since defined differently for PLEX and LP)
-            |`curvature`| Spectral curvature, twice the log-parabola parameter $\beta$
-            |`e0`       | Spectral scale energy, close to the "pivot"
-            |`epeak`    | $E_p$, Energy of SED maximum. limited to (100 MeV-1TeV)
-            |`fpeak`    | $F_p$,  differential flux, in eV s-1 cm-2, at `epeak`
-            |`sin_b`    | $\sin(b)$, where $b$ is the Galactic latitude 
-            |`var`      | `Variability_Index` parameter from 4FGL-DR4 
-            |`nbb`      | Number of Bayesian Block intervals from the wtlike analysis 
-             
+            |`Ep`       | $E_p$, Energy of SED maximum. limited to (100 MeV-1TeV)
+            |`Fp`       | $F_p$,  differential flux, in eV s-1 cm-2, at `Ep`
+            |`d`        | Spectral curvature, twice the log-parabola parameter $\beta$
+            |`var`      | `Variability_Index` parameter from 4FGL-DR4              
         """)
-
+            # |`e0`       | Spectral scale energy, close to the "pivot"
+            # |`sin_b`    | $\sin(b)$, where $b$ is the Galactic latitude 
+            # |`eflux`    | Energy flux for E>100 Mev, in erg cm-2 s-1 
+            # |`nbb`      | Number of Bayesian Block intervals from the wtlike analysis 
         show(f"""* Values and counts of the `association` column""")
         fig, ax =plt.subplots(figsize=(6,3))
         sns.countplot(self.df, x='association').set(title='4FGL-DR4 source categories');
@@ -200,26 +209,38 @@ class FermiSources:
         X,y = self.getXy(mlspec) 
         return model.fit(X,y)
 
-    def write_summary(self, summary_file = 'files/summary.csv', overwrite=True):
-        from pathlib import Path
+    def reformat(self, ):
+        from pylib.diffuse import Diffuse
         def plike(rec):
             class1 = rec.class1.lower() if not pd.isna(rec.class1) else np.nan
             if not pd.isna(class1) and class1 in ('msp','psr'): 
                 return dict(msp='MSP', psr='young')[class1]
             if rec.association=='unid': return 'UNID-'+ rec.prediction.upper()
             if class1=='glc': return 'glc'
-            return rec.association
+            if rec.prediction=='psr' and not pd.isna(rec.class1): return rec.class1+'-psr'
+            return '-'
 
+        df = self.df.copy()
+        # add  value of diffuse at sources
+        df['diffuse'] = Diffuse().get_values_at(df)
+        pre = self.model+'_'
+        df['Ep'] = np.power(10, df[pre+'log_epeak'])
+        df['Fp'] = np.power(10, df[pre+'log_fpeak'])
+        df['d']  = df[pre+'d']
+        df['source type']= df.apply(plike, axis=1)
+        
+
+        cols='glon glat ts r95 diffuse d Fp Ep'.split()+['source type']
+ 
+        return df.reindex(columns=cols)[df['source type']!='-']
+
+    def write_summary(self, summary_file = 'files/summary.csv', overwrite=True):
+        from pathlib import Path
 
         if not Path(summary_file).is_file() or overwrite:
-            show(f'## Write summary to `{summary_file}`')
-            df = self.df.copy()
-            df['Ep'] = np.power(10, df.log_epeak)
-            df['Fp'] = np.power(10, df.log_fpeak)
-            df['source type']= df.apply(plike, axis=1)
-            cols='glon glat ts r95 d Fp Ep'.split()+['source type']
-            rows = np.isin(df['source type'].values, 'UNID-PSR young MSP'.split())
-            df.loc[rows, cols].to_csv(summary_file, float_format='%.3f' )
+            sdf = self.reformat()
+            sdf.to_csv(summary_file, float_format='%.3f') 
+            show(f'## Write {len(sdf)}-record summary, using model {self.model}, to `{summary_file}`')
         else:
             show(f'### File `{summary_file}` exists--not overwriting.')
 
@@ -261,7 +282,11 @@ class FermiSources:
         
         model = get_model(model_name)
         try:
-            self.classifier = self.fit( model )
+            X,y = self.getXy(mlspec=None) 
+            model.probability=True # needed to get probabilites
+            self.classifier =  model.fit(X,y)
+            # self.classifier = self.fit( model )
+            # self.probs = self.classifier.predict_proba(y)
         except ValueError as err:
             print(f"""Bad data? {err}""")
             print(self.df.loc[:,self.mlspec.features].describe())
@@ -287,6 +312,15 @@ class FermiSources:
                 print(f'Attempt to ssve pickle to {save_to} failed, {e}', file=sys.stderr)
                 
 
+    def predict_prob(self, query='association=="unid"'):
+        """Return DF with fit probabilities
+        """
+        mdl = self.classifier
+        assert mdl.probability, 'Fit must be with probability True' 
+        dfq = self.df.query(query) if query is not None else self.df
+        X = dfq.loc[:, self.mlspec.features]
+        return pd.DataFrame(mdl.predict_proba(X), index=dfq.index,
+                            columns=['p_'+ n for n in self.mlspec.target_names])
     
     def pairplot(self, **kwargs):
         
@@ -347,7 +381,9 @@ class FermiSources:
                                     gridspec_kw=dict(wspace=0.1))
 
         size_kw = dict(size='log_eflux', sizes=(20,150),size_norm=(-12,-10))
-        hue_kw = lambda what: dict(hue_order=self.mlspec.target_names, hue =what)
+        hue_kw = lambda what: dict(hue_order=self.mlspec.target_names, 
+                            palette='yellow magenta cyan'.split(), edgecolor=None,
+                                  hue =what)
         df = self.df
 
         ax1.set(**kwargs)
