@@ -222,6 +222,37 @@ class Summary(Paper):
         from pylib.diffuse import Diffuse
         self.diff = Diffuse()
 
+    def plot_psr(self, ax, hue_order=None):#, palette='yellow magenta cyan'.split()):
+        df = self.df
+        for hue, marker, color in zip(self.hue_kw['hue_order'] if hue_order is None else hue_order, #zip('UNID-PSR MSP young'.split(),
+                                    '*oD', 
+                                    self.hue_kw['palette']):
+            t =  df[df.loc[:,self.hue_kw['hue']]==hue]
+            ax.scatter(t, marker=marker, s=50, color=color, label = f'({len(t)}), {hue}')
+
+        ax.legend(fontsize=14)
+        
+    def ait(self, hue_order=None):
+        if not hasattr(self, 'diff'):
+            self.setup_diffuse()
+        show(f"""### All-sky Galactic Diffuse """)
+        ax = self.diff.ait_plot(figsize=(20,8))#cmap='gist_gray', log=False,);
+        self.plot_psr(ax, hue_order)
+        show(ax.figure)
+
+    def zea(self, *args, size=90):
+
+        ax = self.diff.zea_plot(*args, size=size)
+        self.plot_psr(ax)
+        ax.grid(color='0.5', ls='-')
+        # ax.legend(loc='upper left');
+        return ax
+
+    def show_diffuse_flux(self, df=None, **kwargs):
+        if df is None:
+            df = self.df
+        self.diff.show_diffuse_flux(df, hue_kw=self.hue_kw, **kwargs) #self.df, hue_kw=self.hue_kw)
+
 #--------------------------------------------------------------------------------
 if 'doc' in sys.argv:
     self = Summary(show_confusion=False, #summary_file=None,

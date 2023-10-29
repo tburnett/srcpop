@@ -42,7 +42,7 @@ class ML(FermiSources):
         def simple_pivot(df, x='prediction', y= 'association'):        
             ret =df.groupby([x,y]).size().reset_index().pivot(
                 columns=x, index=y, values=0)
-            return ret.reindex(index='bll fsrq psr bcu other unk unid'.split())
+            return ret.reindex(index='bll fsrq psr bcu unk spp other unid'.split())
             
             
         df_plot = simple_pivot(self.df)

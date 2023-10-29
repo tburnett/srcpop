@@ -1,5 +1,6 @@
 from pylib.curvature import *
-from pylib.kde import KDE, Gaussian_kde
+from pylib.kde import Gaussian_kde
+from fermi_sources import update_legend
 
    
 def spectral_cut(df, elim=(0.4,4), fpmax=20, cmin=0.5):

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from pathlib import Path
 if 'dark' in sys.argv:
     plt.style.use('dark_background') #s
     plt.rcParams['grid.color']='0.5'
@@ -222,13 +223,13 @@ class FermiSources:
 
         df = self.df.copy()
         # add  value of diffuse at sources
-        df['diffuse'] = Diffuse().get_values_at(df)
+        self.diffuse = Diffuse()
+        df['diffuse'] = self.diffuse.get_values_at(df)
         pre = self.model+'_'
         df['Ep'] = np.power(10, df[pre+'log_epeak'])
         df['Fp'] = np.power(10, df[pre+'log_fpeak'])
         df['d']  = df[pre+'d']
-        df['source type']= df.apply(plike, axis=1)
-        
+        df['source type']= df.apply(plike, axis=1)        
 
         cols='glon glat ts r95 diffuse d Fp Ep'.split()+['source type']
  
@@ -303,6 +304,11 @@ class FermiSources:
         df = self.df
         self.train_df = df[df.association.apply(lambda x: x in target_names)]
         self.unid_df = df[df.association=='unid']
+
+        # useful for plots
+        self.hue_kw = lambda what: dict(hue_order=self.mlspec.target_names, 
+                            palette='yellow magenta cyan'.split(), edgecolor=None,
+                                  hue =what)
         # return fs_data, train_df, unid_df
         if save_to is not None:
             try:
@@ -310,7 +316,6 @@ class FermiSources:
                 show(f'Saved to {save_to}')
             except Exception as e:
                 print(f'Attempt to ssve pickle to {save_to} failed, {e}', file=sys.stderr)
-                
 
     def predict_prob(self, query='association=="unid"'):
         """Return DF with fit probabilities
@@ -531,7 +536,7 @@ class SEDplotter:
         # except:
         #     fcatf = None
         return uwf, fcatf
-        
+       
     def plots(self, src, ax=None, **kwargs):
         fig, ax = plt.subplots(figsize=(2,2)) if ax is None else  (ax.figure, ax)
         kw = dict(xlabel='', ylabel=''); kw.update(kwargs)
