@@ -1,10 +1,10 @@
 from scipy import stats
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
-from fermi_sources import update_legend
-from ipynb_docgen import show
+# import seaborn as sns
+# from fermi_sources import update_legend
+# from ipynb_docgen import show
 
 
 class Gaussian_kde(stats.gaussian_kde):
@@ -38,52 +38,63 @@ class Gaussian_kde(stats.gaussian_kde):
             return pd.DataFrame.from_dict(dict(x=m1-m2, y=m1+m2, ))
         return cls(meas(n), 'x y'.split())
 
-def kde_analysis(df):
-    def kde_check(cols = 'log_epeak log_fpeak d diffuse'.split()):
-        tdf = df.copy()
-        for t in 'young MSP'.split():
-            gde = Gaussian_kde( df[df['source type']==t],  cols)
-            arg ='pdf_'+t
-            u = gde(df)
-            tdf[arg] = u/np.max(u)
+# def kde_analysis(df, hue_kw, size_kw):
+#     """Scatter plot of the normalized msp and psr KDE estimates for unid-pulsar, msp, and psr categories.
+#     The triangular and square regions select sources most likely to be neither.
+
+#     """
+
+#     def kde_check(cols = 'log_epeak log_fpeak d diffuse'.split()):
+#         tdf = df.copy()
+#         for t in hue_kw['hue_order'][1:]:
+#             gde = Gaussian_kde( df[df[hue_kw['hue']]==t],  cols)
+#             arg ='pdf_'+t
+#             u = gde(df)
+#             tdf[arg] = u/np.max(u)
         
-        fig, ax = plt.subplots(figsize=(8,8))
-        size_kw = dict(size='log TS', sizes=(20,100) )
-        hue_kw = dict(hue='source type', hue_order='young MSP UNID-PSR'.split(),
-                     palette='yellow magenta cyan'.split(), edgecolor=None)
-        x,y =tdf.pdf_young, tdf.pdf_MSP
-        sns.scatterplot(tdf, ax=ax,  x=x, y=y,  **hue_kw)#, **size_kw);
-        update_legend(ax, df, hue='source type' )
-        ax.set(xlabel='Normalized young probability', ylabel='Normalized MSP probability')
-        show(f"""## KDE analysis 
-            vars: {cols}""")
-        return ax, tdf
-    ax, df = kde_check('log_epeak log_fpeak d diffuse'.split())
+#         fig, ax = plt.subplots(figsize=(8,8))
+#         # size_kw = dict(size='log TS', sizes=(20,100) )
+#         # hue_kw = dict(**hue_kw, #hue='source type', hue_order='young MSP UNID-PSR'.split(),
+#         #              palette='yellow magenta cyan'.split(), edgecolor=None)
+#         y,x = tdf.iloc[:, -2:].values.T #tdf.pdf_young, tdf.pdf_MSP
+#         sns.scatterplot(tdf, ax=ax,  x=x, y=y,  **hue_kw, s=10,
+
+#          )#, **size_kw);
+#         # update_legend(ax, df, hue=hue_kw )
+#         ax.set(xlabel='Normalized young probability', ylabel='Normalized MSP probability')
+#         show(f"""## KDE analysis 
+#             vars: {cols}""")
+#         return ax, tdf
+
+#     ax, df = kde_check('log_epeak log_fpeak d diffuse'.split())
     
-    class Triangle:
-        def __init__(self, ax, x=(0.06,0.55), y=(0.04, 0.54)):
-            a,b = x
-            c,d = y
-            alpha = (c-d)/(b-a)
-            beta = c-alpha*b
-            # inside is in the triangle or rectangle at origin
-            self.inside = lambda x,y: ((x>a) & (y>c)  & (y < alpha*x+beta ))  | ((x<a) & (y<c))
-            ax.plot([a,b,a,a], [c,c,d, c], '--', color='1.', lw=4)
+#     class Triangle:
+#         def __init__(self, ax, x=(0.06,0.55), y=(0.04, 0.54)):
+#             a,b = x
+#             c,d = y
+#             alpha = (c-d)/(b-a)
+#             beta = c-alpha*b
+#             # inside is in the triangle or rectangle at origin
+#             self.inside = lambda x,y: ((x>a) & (y>c)  & (y < alpha*x+beta ))  | ((x<a) & (y<c))
+#             ax.plot([a,b,a,a], [c,c,d, c], '--', color='1.', lw=2)
     
-        def __call__(self, df, x, y):
-            return self.inside(df[x],df[y])     
-    class Square(Triangle):
-        def __init__(self, ax, a=0.1, b=0.08):
-            z=-0.025
-            self.inside =  lambda x,y: (x<a) & (y<b)
-            ax.plot([z, a, a, z, z] , [z, z, b,b,z], ':', color='1.', lw=4)
+#         def __call__(self, df, x, y):
+#             return self.inside(df[x],df[y]) 
+
+#     class Square(Triangle):
+#         def __init__(self, ax, a=0.1, b=0.08):
+#             z=-0.025
+#             self.inside =  lambda x,y: (x<a) & (y<b)
+#             ax.plot([z, a, a, z, z] , [z, z, b,b,z], ':', color='1.', lw=4)
     
-    t = Triangle(ax)
-    s = Square(ax)
-    show(ax.figure)
-    pars =df[df['source type']=='UNID-PSR'],  'pdf_young', 'pdf_MSP' 
-    q = t(*pars) | s(*pars)
-    show(f'Selected {sum(q)} of the UNID-PSR sources inside the square and triangular regions')
+#     t = Triangle(ax)
+#     s = Square(ax)
+#     return ax.figure
+#     return df,t,s
+
+    # pars =df[df[hue_kw['hue']]==hue_kw['hue_order']] #'UNID-PSR'],  'pdf_young', 'pdf_MSP' 
+    # q = t(*pars) | s(*pars)
+    # show(f'Selected {sum(q)} of the {hue_kw["hue_order"][0]} sources inside the square and triangular regions')
 
 # def apply_kde(data, hue, vars, hue_value):
 #     assert np.all(np.isin(vars, data.columns)), f'{vars} not all in data'    

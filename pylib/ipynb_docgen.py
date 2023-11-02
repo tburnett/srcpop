@@ -48,7 +48,7 @@ import sys, os, string, pprint, datetime
 
 __all__ = ['nbdoc', 'image', 'figure', 'monospace', 'ShowPrintout','capture', 'capture_hide', 
         'capture_show', 'shell', 'create_file', 'ipynb_doc', 'get_nb_namespace', 'special_prefix', 
-        'figure_number', 'display_markdown', 'FigureWrapper','show']
+        'figure_number', 'display_markdown', 'FigureWrapper','show', 'show_fig']
 
 special_prefix = ''
 
@@ -781,3 +781,13 @@ def show(obj, vars={}, **kwargs):
         # display.display(doc_formatter(doc, vars, mimetype='text/html'))
     # pass the doc, a callable or a text string to the formatter
     display.display(doc_formatter(doc, vars, mimetype=mimetype))
+
+def show_fig(fn, *pars, fignum=None, caption=None, **kwargs): 
+    """
+    Equivalent to :
+    show(fn(pars, **kwargs), fignum=fignum, caption=fn.__doc__)
+    """
+    assert callable(fn), 'Expect fn to be a callable'
+    fig = fn(*pars, **kwargs);    
+    assert isinstance(fig, plt.Figure), 'Expect fn to return a plt.Figure object'
+    show( fig, fignum=fignum, caption=caption if caption is not None else fn.__doc__)

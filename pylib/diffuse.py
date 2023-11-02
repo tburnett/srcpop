@@ -16,8 +16,9 @@ class Diffuse:
         fits_file = os.path.expandvars(f'$FERMI/diffuse/{filename}')
         self.diffuse_hpm = HPmap.from_FITS(fits_file, field=field, name='',)
         self.unit = r'$\rm{eV\ cm^{-2}\ s^{-1}\ deg^{-2}}$' #self.diffuse_hpm.unit
-        show(f"""* Load diffuse file,  `{fits_file}`<br>  unit={self.unit}<br>  select energy= {energy} MeV""")
+        print(f"""* Load diffuse file,  `{fits_file}`<br>  unit={self.unit}<br>  select energy= {energy} MeV""")
         
+
         # convert units of the HEALPix array in the HPmap guy
         dmap = (np.log10(self.diffuse_hpm.map) 
                 + 2*np.log10(energy) +6   # multiply by E^2, convert from MeV to eV
@@ -30,6 +31,9 @@ class Diffuse:
         glon,glat = healpy.pix2ang(self.diffuse_hpm.nside, range(len(dmap)), lonlat=True)
         glon[glon>180]-=360
         self.ridge_mask= (np.abs(glat)<2) & (np.abs(glon)<45)
+        
+    def check_hpm():
+        pass 
         
     def eflux_plot(self, glon=0):
         from astropy.io import fits
@@ -62,7 +66,8 @@ class Diffuse:
         sns.ecdfplot(ax=ax, x=self.diffuse_hpm.map[self.ridge_mask], label='ridge', ls=':', color='grey')
         ax.legend()
 
-    def ait_plot(self, figsize=(30,12), **kwargs):
+    def ait_plot(self, figsize=(20,8), **kwargs):
+        self.check_hpm()
         fig=plt.figure(figsize=figsize)
         kw = dict(log=False, fig=fig, grid_color='grey', pixelsize=1, colorbar=False, 
                         cmap='gist_gray' if self.dark_mode else 'Greys')
@@ -70,6 +75,7 @@ class Diffuse:
         return self.diffuse_hpm.ait_plot(**kw)#, alpha=0.1)
 
     def zea_plot(self, *args, fig=None, size=10, **kwargs):
+        self.check_hpm()
         if fig is None:
             fig = plt.figure(figsize=(10,10))
         kw = dict(colorbar=False, log=False,  cmap='gist_gray' if self.dark_mode else 'Greys')
@@ -79,13 +85,17 @@ class Diffuse:
         
     def fluxticks(self, x, ):
         ticks =  np.arange(0,3.1,1).astype(int)
+        # energy = 900 if not hasattr(self, 'energy') else self.energy
+        # unit = '' if not hasattr(self, 'unit') else f'({self.unit})'
         return {x+'ticks':ticks,
                 x+'ticklabels' : [f'$10^{{{x}}}$' for x in ticks],
-                x+'label': f'Diffuse energy flux at {self.energy:.0f} MeV ({self.unit})' }
+                x+'label': f'Diffuse energy flux'}# at {energy:.0f} MeV {unit}' }
         
-    def show_diffuse_flux(self,  df, hue_kw, figsize=(8,8), fignum=None, title=None):
+    def show_diffuse_flux(self,  df=None, hue_kw=None, figsize=(8,8), fignum=None, title=None):
 
-        show(f"""## Diffuse flux value at sources """ if title is None else title)
+        if df is None: df=self.df
+        if hue_kw is None:hue_kw = self.hue_kw
+        show(f"""### Diffuse flux value at sources """ if title is None else title)
         
         fig, (ax1,ax2) = plt.subplots(nrows=2, figsize=figsize, sharex=True,
                                     gridspec_kw=dict(hspace=0.1))
@@ -100,23 +110,24 @@ class Diffuse:
         
         show(fig, fignum=fignum)  
 
-    def show_diffuse_vs_ep(self, df, hue_kw):
-        show(f""" ## Diffuse vs peak energy for pulsar-like sources""")
-        # fig, ax = plt.subplots(figsize=(15,8))
-        data=df
+    def diffuse_vs_ep(self, df=None, hue_kw=None):
+        """Diffuse vs peak energy for pulsar-like sources. The lines are KDE contours for psr and msp sources."""
+
+        data=df if df is not None else self.df
+        if hue_kw is None: hue_kw = self.hue_kw
         x,y = 'log_epeak diffuse'.split()
         g = sns.JointGrid(height=12, ratio=4 )
         ax = g.ax_joint
-        size_kw = dict(size='log TS', sizes=(20,200) )
+        size_kw = dict(size='log TS', sizes=(20,200) ) if not hasattr(self,'size_kw') else self.size_kw
         sns.scatterplot(data, ax=ax, x=x, y=y, **hue_kw, **size_kw);
         axis_kw= lambda a, label, v: {f'{a}label':label,f'{a}ticks':np.log10(v), f'{a}ticklabels':v }
         
         ax.set(**axis_kw('x','$E_p$ (GeV)', [0.1, 0.25,0.5,1,2,4]),xlim=np.log10((0.1,6)), 
             **self.fluxticks('y')
             )
-        # ax.scatter(orion.log_epeak, orion.diffuse,  marker='o', s=200, color='k', facecolor='none', label='selected')
+
         hkw = dict(element='step', kde=True, bins=25, **hue_kw, legend=False)
         sns.histplot(data, y=y, ax=g.ax_marg_y, **hkw)
         sns.histplot(data, x=x, ax=g.ax_marg_x, **hkw)
-        update_legend(ax, df, hue='source type',  fontsize=12,   loc='lower left')
-        show(g.fig)     
+        update_legend(ax, data, hue=hue_kw['hue'],  fontsize=12,   loc='lower left')
+        return g.fig     

@@ -63,7 +63,6 @@ def show_date():
 @dataclass
 class MLspec:
     features: tuple = tuple("""log_var log_fpeak log_epeak d """.split())
-
     target : str ='association'
     target_names:tuple = tuple('bll fsrq psr'.split())
 

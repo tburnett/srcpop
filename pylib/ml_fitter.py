@@ -10,14 +10,15 @@ import seaborn as sns
 from pylib.catalogs import Fermi4FGL
 
 
-
-# sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
+sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
 if 'dark' in sys.argv:
     plt.style.use('dark_background') #s
     plt.rcParams['grid.color']='0.5'
     dark_mode=True
 else:
     dark_mode=False
+fontsize = plt.rcParams["font.size"] # needed to be persistent??
+
 
         # if dark_mode:
         #     self.hue_kw.update(palette='yellow magenta cyan'.split(), edgecolor=None)
@@ -31,7 +32,6 @@ def show_date():
     import datetime
     date=str(datetime.datetime.now())[:16]
     show(f"""<h5 style="text-align:right; margin-right:15px"> {date}</h5>""")
-
 
 def ternary_plot(df, columns=None, ax=None):
     import ternary
@@ -75,6 +75,7 @@ class MLspec:
     target : str ='target'
     target_names:tuple = tuple('bll fsrq pulsar'.split())
     psr_names: tuple = tuple('psr msp glc'.split()) #spp
+
     palette =['yellow', 'magenta', 'cyan'] if dark_mode else 'green red blue'.split()
     model_name : str = 'SVC'
 
@@ -114,8 +115,9 @@ class MLfitter(MLspec):
 
         self.model = self.get_model() 
         self.setup_target()
-        print(f"""pulsar: {dict(self.df.groupby('association').size()[list(self.psr_names)])} """)
+
         print(f"""Targets: {dict(self.df.groupby('target').size())}    """)
+        print(f"""pulsar: {dict(self.df.groupby('association').size()[list(self.psr_names)])} """)
 
     def load_data(self, fgl):
         """Extract subset of 4FGL information relevant to ML pulsar-like selection
@@ -304,17 +306,46 @@ class MLfitter(MLspec):
         return fig
 
     def write_summary(self, 
-            summary_file=f'files/{dataset}_unid_fit_summary.csv', 
+            summary_file=f'files/{dataset}_pulsar_summary.csv', 
             overwrite=True):
-
-        if not Path(summary_file).is_file() or overwrite:
-            cols= 'glat glon significance r95 variability Ep Fp d association prediction'.split()
-            sdf = pd.concat([self.df.query('association=="unid"').loc[:,cols], self.predict_prob()], axis=1)
-            sdf.to_csv(summary_file, float_format='%.3f') 
-            print(f'Wrote {len(sdf)}-record summary, using model {self.model}, to `{summary_file}`')
-        else:
+        
+        if Path(summary_file).is_file() and not overwrite:
             print(f'File `{summary_file}` exists--not overwriting.')
+            return
+        
+        def set_pulsar_type(s):
+            if s.association in self.psr_names: return s.association
+            if s.prediction=='pulsar': return s.association+'-pulsar'
+            return np.nan
 
+        def get_diffuse(df):
+            from astropy.coordinates import SkyCoord
+            from pylib.diffuse import Diffuse
+            diff = Diffuse()
+            sdirs = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+            return  diff.get_values_at(sdirs)
+            
+        df = self.df.copy()
+        
+        df['p_pulsar'] = self.predict_prob(query=None).loc[:,'p_pulsar']
+        
+        # set source_type for pulsars and pulsar-pred;ctions
+        df['source_type'] = df.apply(set_pulsar_type, axis=1)
+        df = df[df.source_type.notna()]
+            
+
+        # add a diffuse column
+        df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
+
+        cols= 'source_type glat glon significance r95 Ep Fp d p_pulsar diffuse'.split()
+        df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
+        print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
+
+
+
+if 'show' in sys.argv:
+    from pylib.ipynb_docgen import show, capture_hide,capture_show
+    
 if 'doc' in sys.argv:
     from pylib.ipynb_docgen import show, capture_hide,capture_show
 
