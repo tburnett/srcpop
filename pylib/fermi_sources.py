@@ -7,12 +7,12 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from pathlib import Path
+
 if 'dark' in sys.argv:
     plt.style.use('dark_background') #s
     plt.rcParams['grid.color']='0.5'
     dark_mode=True
 spectral_model='uw'if 'uw' in sys.argv else 'fgl'
-
 
 from astropy.coordinates import SkyCoord
 from pylib.ipynb_docgen import capture_hide, show
@@ -37,11 +37,12 @@ def update_legend(ax, data, hue, **kwargs):
 @dataclass
 class FigNum:
     n = 0
+    dn = 1
     @property
     def current(self): return self.n
     @property
     def next(self):
-        self.n +=1
+        self.n +=self.dn
         return self.n
     
 def fpeak_kw(axis='x'):
