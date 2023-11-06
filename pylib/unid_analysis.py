@@ -12,6 +12,7 @@ if 'dark' in sys.argv:
     dark_mode=True
 else:
     dark_mode=False
+    plt.rcParams['figure.facecolor']='white'
 fontsize = plt.rcParams["font.size"] # needed to be persistent??
 def fpeak_kw(axis='x'):
     return {axis+'label':r'$F_p \ \ \mathrm{(eV\ s^{-1}\ cm^{-2})}$', 
@@ -121,7 +122,7 @@ class UnidAnalysis( Diffuse, MLspec):
         """
         data=self.df
         kw = self.hue_kw.copy()
-        kw.pop('edgecolor')
+        kw.pop('edgecolor', '')
         return sns.pairplot(data, kind='kde', vars=vars,  corner=True, **kw).figure
         
     def apply_kde(self, df=None, 
@@ -168,7 +169,8 @@ class UnidAnalysis( Diffuse, MLspec):
             sns.kdeplot(data, x=x, y=y,  ax=ax,  
                         hue=hue_kw['hue'], hue_order=hue_kw['hue_order'][1:3], palette=self.palette[1:3])
         
-            sns.scatterplot(data, ax=ax, x=x,y=y, hue=hue_kw['hue'], hue_order=hue_kw['hue_order'][0:1], 
+            sns.scatterplot(data[data.source_type=="unid-pulsar"], # this should not be needed 
+                            ax=ax, x=x,y=y, hue=hue_kw['hue'], hue_order=hue_kw['hue_order'][0:1], 
                             palette=self.palette[0:1], edgecolor='none',  alpha=0.5, legend=False)
             ax.set(title=title, **kwargs)
             ax.get_legend().set_title('KDE contours')
@@ -214,7 +216,6 @@ class UnidAnalysis( Diffuse, MLspec):
                         ax=ax, **self.hue_kw, **skw).set(ylabel='log flux ratio');
         return fig
 
-if 'unid-doc' in sys.argv: unid_doc()
 
 def unid_doc():
 
@@ -262,6 +263,9 @@ def unid_doc():
     """)
     show('---')
 
+
+if 'unid-doc' in sys.argv: 
+    unid_doc()
 
 def diffuse_doc(self, fn):
 
