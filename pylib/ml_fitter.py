@@ -8,7 +8,10 @@ import pandas as pd
 import seaborn as sns
 
 from pylib.catalogs import Fermi4FGL
+from pylib.tools import FigNum, show_date, update_legend
 
+if 'show' in sys.argv:
+    from pylib.ipynb_docgen import show, show_fig
 
 sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
 if 'dark' in sys.argv:
@@ -19,54 +22,7 @@ else:
     dark_mode=False
 fontsize = plt.rcParams["font.size"] # needed to be persistent??
 
-
-        # if dark_mode:
-        #     self.hue_kw.update(palette='yellow magenta cyan'.split(), edgecolor=None)
-        # else:
-        #     self.hue_kw.update( palette='green red blue'.split())
-
 dataset='dr3' if 'dr3' in sys.argv else 'dr4'
-
-def show_date():
-    from pylib.ipynb_docgen import show
-    import datetime
-    date=str(datetime.datetime.now())[:16]
-    show(f"""<h5 style="text-align:right; margin-right:15px"> {date}</h5>""")
-
-def ternary_plot(df, columns=None, ax=None):
-    import ternary
-    if columns is None: 
-        columns=df.columns
-    assert len(columns==3)
-    fig, ax = plt.subplots(figsize=(8,8))
-
-    tax = ternary.TernaryAxesSubplot(ax=ax,)
-    
-    tax.right_corner_label(columns[0], fontsize=16)
-    tax.top_corner_label(columns[1], fontsize=16)
-    tax.left_corner_label(columns[2], fontsize=16)
-    tax.scatter(df.iloc[:,0:3].to_numpy(), marker='o',
-                s=10,c=None, vmin=None, vmax=None)#'cyan');
-    ax.grid(False); ax.axis('off')
-    tax.clear_matplotlib_ticks()
-    tax.set_background_color('0.3')
-    tax.boundary()
-    return fig
-
-def update_legend(ax, data, hue, **kwargs):
-    """ seaborn companion to insert counts in legend,
-    perhaps change location or font.
-
-    """
-    if len(kwargs)>0:
-        ax.legend(**kwargs)
-    gs = data.groupby(hue).size()
-    leg = ax.get_legend()
-    for tobj in leg.get_texts():
-        text = tobj.get_text()
-        if text in gs.index:
-            tobj.set_text(f'({gs[text]}) {text}')
-
 
 @dataclass
 class MLspec:
@@ -83,9 +39,8 @@ class MLspec:
         return f"""
         Scikit-learn specifications: 
         * features: {self.features}
-        * target: {self.target}
-        * target_names: {self.target_names}
-        * psr_names: {self.psr_names}
+        * target names: {self.target_names}
+        * pulsar names: {self.psr_names}
         * model_name : {self.model_name}"""
 
     def get_model(self):
@@ -116,47 +71,45 @@ class MLfitter(MLspec):
         print(f"""Targets: {dict(self.df.groupby('target').size())}    """)
         print(f"""pulsar: {dict(self.df.groupby('association').size()[list(self.psr_names)])} """)
 
+    def __repr__(self):
+        return f"""MLfitter applied to 4FGL-{dataset.upper()} \n{super().__repr__()}
+        """
+    
     def load_data(self, fgl):
         """Extract subset of 4FGL information relevant to ML pulsar-like selection
         """
 
         cols = 'glat glon significance r95 variability class1'.split()
         fgl = Fermi4FGL(fgl)
-
-        # fgl.loc[:, 'beta'] = fgl.field('LP_beta').astype(np.float64)
         
-        # remove soruces without variability or r95
+        # remove sources without variability or r95
         df = fgl.loc[:,cols][(fgl.variability>0) & (fgl.r95>0) &(fgl.significance>4)].copy()
         print(f"""Remove {len(fgl)-len(df)} without valid r95 or variability or significance>4
             -> {len(df)} remain""")
 
+        # extract LP spectral function, get its parameters
         df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
         sed = df['lp_spec']
         df['Ep'] = 10**sed.apply(lambda f: f.epeak)
         df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
         df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
 
-        # now remvoe any bad SED fits
-        # n = len(df)
-        # df = df[df.d>-0.2]
-        # if len(df)<n:
-        #     print(f'Remove {n-len(df)} without good LP spectral fit -> {len(df)} remain')
-
-        # reclassify associations
-        def reclassify(class1):
+        # lower-case class1, combine 'unk' and ''  associations to 'unid'
+        def reclassify(class1):            
             cl = class1.lower()
-            if cl in 'bll fsrq psr msp bcu unk spp glc unid'.split():
-                return cl
-            # if cl in 'psr msp'.split(): return 'psr'
-            if cl=='': return 'unid'
-            return 'other'
+            return 'unid' if cl in ('unk', '') else cl
+            # if cl in 'bll fsrq psr msp bcu spp glc unid'.split():
+            #     return cl
+            # if cl=='' or cl=='unk': return 'unid'
+            # return cl
+
         df['association'] = df.class1.apply(reclassify)
-        # append columns woth logs needed later
+        # append columns with logs needed later
         df['log_var'] = np.log10(df.variability)
         df['log_epeak'] = np.log10(df.Ep)
         df['log_fpeak'] = np.log10(df.Fp)  
 
-        return df, len(fgl)
+        return df,len(fgl)
 
     def setup_target(self):
         df = self.df
@@ -229,7 +182,7 @@ class MLfitter(MLspec):
                             columns=['p_'+ n for n in self.target_names])
 
     def confusion_display(self,  test_size=0.25, **kwargs):
-        """
+        """Confusion analysis plots.
         """
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import accuracy_score, ConfusionMatrixDisplay 
@@ -268,7 +221,9 @@ class MLfitter(MLspec):
             ax.set_title(title)
         return fig 
    
-    def pairplot(self, query='', **kwargs):        
+    def pairplot(self, query='', **kwargs):  
+        """Corner plots.
+        """      
         if query=='':
             tsel = self.df[self.target].apply(lambda c: c in self.target_names)\
             if self.target_names is not None else slice(None)
@@ -280,117 +235,207 @@ class MLfitter(MLspec):
         g = sns.pairplot(df, vars=self.features,  palette=self.palette, **kw,)
         return g.figure
 
-    def plot_predict_prob(self):
+    def plot_pulsar_prob(self):
+        """Predicted pulsar probability distributions for unid sources. 
+        Upper plot: Stacked histograms, according to which target class was selected
+        by the prediction. Lower plot: empirical cumulative distributions.
+        """
 
         pp = self.predict_prob()
         pp['prediction'] = self.df.prediction
-        fig, ax = plt.subplots(figsize=(5,3))
-        sns.histplot(pp, ax=ax, x='p_pulsar', element='step',bins=np.arange(0,1.01,0.025), 
-                multiple='stack',
-                        hue = 'prediction',
+        hue_kw = dict(  hue = 'prediction',
                         hue_order=self.target_names,
-                        palette=self.palette,
+                        palette=self.palette)
+        
+        fig, (ax1,ax2) = plt.subplots(nrows=2, figsize=(6,5), sharex=True,
+                                    gridspec_kw=dict(hspace=0.1))
+        sns.histplot(pp, ax=ax1, x='p_pulsar', element='step',bins=np.arange(0,1.01,0.025), 
+                multiple='stack', **hue_kw,
+                        # hue = 'prediction',
+                        # hue_order=self.target_names,
+                        # palette=self.palette,
                         edgecolor= '0.9',   alpha=0.8,  )
+        update_legend(ax1, pp, 'prediction', loc='upper center', fontsize=12)
+
+        sns.ecdfplot(pp, **hue_kw, ax=ax2, x='p_pulsar', legend=False);
         return fig
 
     def plot_prediction_association(self, ):
+        """Bar chart showing the prediction counts for each association type, according 
+        to the predicted target class. 
+        """
+        def curly(x,y, scale=(1,1), ax=None, color='k'):
+            # uses transAxes, scale as (x,y) tuple
+            import matplotlib.transforms as mtrans
+            from matplotlib.text import TextPath
+            from matplotlib.patches import PathPatch
+            
+            if not ax: ax=plt.gca()
+            tp = TextPath((0, 0), "}", size=1)
+            trans = (  mtrans.Affine2D().scale(*scale) 
+                    + mtrans.Affine2D().translate(x,y) 
+                    + ax.transAxes) 
+            pp = PathPatch(tp, lw=0, fc=color, transform=trans)
+            ax.add_artist(pp)
+            
+        df = self.df.copy()
 
+        # combine a bunch of the class1 guys into "other"
+        def make_other(s):
+            if s in 'bll fsrq psr msp bcu spp glc unid'.split():
+                return s
+            return 'other'
+            
+        df.loc[:,'association'] = df.association.apply(make_other).values
         def simple_pivot(df, x='prediction', y= 'association'):        
             ret =df.groupby([x,y]).size().reset_index().pivot(
                 columns=x, index=y, values=0)
-            return ret.reindex(index='bll fsrq psr msp spp glc bcu other unk unid'.split())
-             
-        df_plot = simple_pivot(self.df)
+            return ret.reindex(index='bll fsrq psr msp glc bcu spp other unid'.split())
+            
+        df_plot = simple_pivot(df)
         fig, ax = plt.subplots()
         ax = df_plot.plot.barh(stacked=True, ax=ax, color=self.palette)
         ax.invert_yaxis()
         ax.set(title='Prediction counts', ylabel='Association type')
-        ax.legend(bbox_to_anchor=(0.78,0.75), loc='lower left', frameon=True )
+        ax.legend(bbox_to_anchor=(0.78,0.75), loc='lower left', frameon=True ,
+                title='Target class')
+        # curly bracket to denote pulsar
+        # ax.text(0.15, 0.6, '}', fontsize=80, va='center', transform=ax.transAxes);
+        curly(0.12, 0.52, (0.15,0.3), ax=ax, color='white')
+        ax.text(0.22, 0.61, 'pulsar target', va='center', 
+                color='white' if dark_mode else 'k', transform=ax.transAxes)
         return fig
 
+    # def write_summary(self, 
+    #         summary_file=f'files/{dataset}_classification.csv', 
+    #         overwrite=True):
+        
+    #     if Path(summary_file).is_file() and not overwrite:
+    #         print(f'File `{summary_file}` exists--not overwriting.')
+    #         return
+        
+    #     def set_pulsar_type(s):
+    #         if s.association in self.psr_names: return s.association
+    #         if s.prediction=='pulsar': return s.association+'-pulsar'
+    #         return np.nan
+    #     def set_source_type(s):
+    #         return s.association if s.association in self.psr_names else \
+    #             s.association+'-'+s.prediction
+
+    #     def get_diffuse(df):
+    #         from astropy.coordinates import SkyCoord
+    #         from pylib.diffuse import Diffuse
+    #         diff = Diffuse()
+    #         sdirs = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+    #         return  diff.get_values_at(sdirs)
+            
+    #     df = self.df.copy()
+        
+    #     df['p_pulsar'] = self.predict_prob(query=None).loc[:,'p_pulsar']
+        
+    #     # set source_type for pulsars and pulsar-pred;ctions
+    #     df['source_type'] = df.apply(set_source_type, axis=1)
+    #     df = df[df.source_type.notna()]
+            
+
+    #     # add a diffuse column
+    #     df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
+
+    #     cols= 'source_type glat glon significance r95 Ep Fp d p_pulsar diffuse'.split()
+    #     df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
+    #     print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
+
     def write_summary(self, 
-            summary_file=f'files/{dataset}_pulsar_summary.csv', 
-            overwrite=True):
-        
-        if Path(summary_file).is_file() and not overwrite:
-            print(f'File `{summary_file}` exists--not overwriting.')
-            return
-        
-        def set_pulsar_type(s):
-            if s.association in self.psr_names: return s.association
-            if s.prediction=='pulsar': return s.association+'-pulsar'
-            return np.nan
-
-        def get_diffuse(df):
-            from astropy.coordinates import SkyCoord
-            from pylib.diffuse import Diffuse
-            diff = Diffuse()
-            sdirs = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
-            return  diff.get_values_at(sdirs)
+                summary_file=f'files/{dataset}_classification.csv', 
+                overwrite=True):
             
-        df = self.df.copy()
-        
-        df['p_pulsar'] = self.predict_prob(query=None).loc[:,'p_pulsar']
-        
-        # set source_type for pulsars and pulsar-pred;ctions
-        df['source_type'] = df.apply(set_pulsar_type, axis=1)
-        df = df[df.source_type.notna()]
+            if Path(summary_file).is_file() and not overwrite:
+                print(f'File `{summary_file}` exists--not overwriting.')
+                return
             
+            def set_pulsar_type(s):
+                if s.association in self.psr_names: return s.association
+                if s.prediction=='pulsar': return s.association+'-pulsar'
+                return np.nan
+            def set_source_type(s):
+                return s.association if s.association in self.psr_names else \
+                    s.association+'-'+s.prediction
 
-        # add a diffuse column
-        df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
+            def get_diffuse(df):
+                from astropy.coordinates import SkyCoord
+                from pylib.diffuse import Diffuse
+                diff = Diffuse()
+                sdirs = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+                return  diff.get_values_at(sdirs)
+                
+            df = self.df.copy()
 
-        cols= 'source_type glat glon significance r95 Ep Fp d p_pulsar diffuse'.split()
-        df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
-        print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
+            # add the three predicted probabilities
+            # df['p_pulsar'] = self.predict_prob(query=None).loc[:,'p_pulsar']
+            df = pd.concat([df,self.predict_prob(query=None)], axis=1)
+            
+            # set source_type for pulsars and pulsar-predictions
+            df['source_type'] = df.apply(set_source_type, axis=1)
+            # df = df[df.source_type.notna()]
+                
 
+            # add a diffuse column
+            df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
+
+            cols= 'source_type glat glon significance r95 Ep Fp d diffuse p_bll p_fsrq p_pulsar'.split()
+            df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
+            print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
 
 
 if 'show' in sys.argv:
-    from pylib.ipynb_docgen import show, capture_hide,capture_show
+    from pylib.ipynb_docgen import show, capture_hide,capture_show, show_fig
     
 if 'doc' in sys.argv:
-    from pylib.ipynb_docgen import show, capture_hide,capture_show
+    from pylib.ipynb_docgen import show, capture_hide,capture_show, show_fig
+    fn = FigNum(n=1, dn=0.1)
 
-    show(f"""# The UW Machine Learning classification for {dataset.upper()}
+    show(f"""# Machine Learning classification for {dataset.upper()}
     Output for the [confluence page](https://confluence.slac.stanford.edu/display/SCIGRPS/The+UW+Machine+Learning+classification) """)
     show_date()
-
+    with capture_show('setup printout') as setup_print:
+        self = MLfitter()
+        # show(setup_print)
 
     show(f"""
+
+    ### Data preparation
+    We select {len(self.df)} persistent point sources from the 4FGL-{dataset.upper()} catalog. We create
+    an `association` property based on the `CLASS1` field. This takes its lower-case value with `unk` combined with 
+    completely unassociated to `unid`.
+
     ### Scikit-learn parameters
 
     The context is the scikit-learn package
     
-    * Targets: We observe that 90% of the associated sources are pulsars (MSP (msp) or young (psr)) or 
-    blazars, BL Lac (bll) or FSRQ (fsrq). Thus we choose three classes for training:  pulsar=psr+msp+glc,
-    combined to represent pulsars,  bll, and fsrq. Not that this does not include the blazar bcu class, as 
-    it is a mixture.
-    * Features: We assume that the separation needs only variability and spectral information. For the 
+    * __Targets__: We observe that 90% of the associated sources are pulsars (MSP (`msp`) or young (`psr`) or 
+    blazars, BL Lac (`bll`) or FSRQ (`fsrq`), including `bcu`. Thus we choose three classes for training:
+    pulsar=`psr+msp+glc`,
+    combined to represent pulsars,  `bll`, and `fsrq`. Note that this does not include the blazar `bcu` class, as 
+    it is a mixture and we choose to distinguish `bll` from `fsrq`.
+
+    * __Features__: We assume that the separation needs only variability and spectral information. For the 
     spectral information we use the three parameters of the log parabola spectral function: the energy and
     energy flux at the peak of the SED, $E_p$  and $F_p$ and the curvature $d$, (We examine spatial
-    information later to check that "pulsars" are  indeed Galactic.)
-    * Classification model: We use the SVC model.
+    information later to check that sources predicted to be "pulsars" are  indeed Galactic.)
+    * __Classification model__: We use the SVC model.
     """)
 
-    with capture_show('setup printout') as setup_print:
-        self = MLfitter()
-        show(setup_print)
-
-    show(f"""
-    ### Data selection
-    We start with the {self.cat_len} sources in the 4FGL-{dataset.upper()} catalog, and discard those
-    without an R95 value (extended sources) or with a significance < 4, with {len(self.df)} remaining. 
-    """)
-            
+                
     show(f"""### The features for the target names
     This plot shows the distributions of the features for each of the three targets. For the variability,
     Ep  and Fp we use the log base 10 values log_var, log_fpeak, and log_epeak.
     """)
-    show(self.pairplot(), fignum=1, caption='');
+    show_fig(self.pairplot, fignum=fn.next,
+             caption="""Corner plot of the training sources showing the four features for each of 
+             the three targets. """) 
     self.train_predict()
 
-    show(f"""##Fitting
+    show(f"""## Fitting
     This means training the model with the target classes, then using it to predict the most likely
     identity of other sources. We are most interested in the unid sources, but apply it to all.
     """)
@@ -401,7 +446,7 @@ if 'doc' in sys.argv:
     with capture_show('') as confusion_print:
         fig = self.confusion_display()
     show(confusion_print)
-    show(fig, fignum=2, caption='')
+    show(fig, fignum=fn.next, caption='')
     show("""We are only interested in how well the pulsar category is selected, so the mixing between the
     two blazar categories is not an issue. So ~10% of real pulsars are lost, with <5% contamination of
     FSRQs. This means ~90% efficiency and >95% purity. 
@@ -410,18 +455,24 @@ if 'doc' in sys.argv:
     show(f"""### Prediction statistics
     This shows the category assignment for all the association types, including the targets.
     """)
-    show(self.plot_prediction_association(), fignum=3, caption='')
+    show_fig(self.plot_prediction_association, fignum=fn.next, )
 
     
-    show("""## Unid probabilities
-    The prediction procedure estimates the three probabilities. Here is the distribution of the pulsar
-    probability, tagged with the prediction category.
+    show(f"""## Unid prediction probabilities
+    The prediction procedure estimates the three probabilities. In Figure {fn.next} we show the distribution of the pulsar
+    probability, tagged with the prediction category, and the cumulative distributions.
     """)
-    show(self.plot_predict_prob(), fignum=4, caption='')
+    show_fig(self.plot_pulsar_prob, fignum=fn, )
+
 
     show("""## Unid features
     Finally, here are the distributions of the features for the unid class, for each prediction.
     """)
-    show(self.pairplot("association=='unid'", hue='prediction'), fignum=5, caption='')
+    show_fig(self.pairplot, "association=='unid'", hue='prediction', fignum=fn.next,
+             caption=f"""Corner plot of the `unid` sources showing the four features for each of 
+             the three predicted target classes.""" )
     
+    show(f"""## Write summary table if it doesn't exist.""")
     self.write_summary( overwrite=False)
+
+

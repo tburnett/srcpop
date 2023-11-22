@@ -4,6 +4,7 @@ from pylib.ml_fitter import *
 from pylib.diffuse import Diffuse
 from pylib.ipynb_docgen import show, capture_hide, capture_show, show_fig
 
+dataset='dr3' if 'dr3' in sys.argv else 'dr4'
 
 sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
 if 'dark' in sys.argv:
@@ -25,25 +26,54 @@ def epeak_kw(axis='x'):
             axis+'ticklabels':'0.1 1 10 '.split(),
             }
 
-@dataclass
-class FigNum:
-    n : float = 0
-    dn : float= 1
-    @property
-    def current(self): return self.n if self.dn==1 else f'{self.n:.1f}'
-    @property
-    def next(self):
-        self.n += self.dn
-        return self.current
-    def __repr__(self):
-        return self.current
+           
+class Mystery:
+    """ Implement selection of the mysterious pulsar-like sources
+    """
+    class Triangle:
+        def __init__(self, ax, x=(0.06,0.55), y=(0.04, 0.54)):
+            a,b = x
+            c,d = y
+            alpha = (c-d)/(b-a)
+            beta = c-alpha*b
+            # inside is in the triangle or rectangle at origin
+            self.inside = lambda x,y: ((x>a) & (y>c)  & (y < alpha*x+beta ))  | ((x<a) & (y<c))
+            if ax is not None: ax.plot([a,b,a,a], [c,c,d, c], '--', color='1.', lw=2)
+    
+        def __call__(self, df, x, y):
+            return self.inside(df[x],df[y])     
+    class Square(Triangle):
+        def __init__(self, ax, a=0.1, b=0.08):
+            z=-0.025
+            self.inside =  lambda x,y: (x<a) & (y<b)
+            if ax is not None: ax.plot([z, a, a, z, z] , [z, z, b,b,z], ':', color='1.', lw=2)
             
+    class Rectangle(Triangle):
+        def __init__(self, ax, x=(0.06,0.55), y=(0.04, 0.54)):
+            a,b = x
+            c,d = y
+            self.inside = lambda x,y: (x>a) & (y>c)  & (x<b) & (y<d)
+            if ax is not None: ax.plot([a,b,b,a,a], [c,c,d,d, c], '--', color='1.', lw=2)
+   
+    def __init__(self, df, hue_order, ax=None):
+        self.df =df
+        self.r = self.Rectangle(ax=ax, x=(0.05,0.4), y=(0.05,0.2))
+        self.s = self.Square(ax=ax, a=0.1, b=0.15)
+        self.info= pd.Series(data= dict( ( (st, sum(self.selected(st)))
+                                        for st in  hue_order)),
+                        name='selected count')
+        self.mystery_df =df[df.source_type=="unid-pulsar"][self.selected('unid-pulsar')] 
+        
+    def selected(self, st):
+            pars =self.df[self.df['source_type']==st],  'psr_kde', 'msp_kde' 
+            return self.s(*pars) | self.r(*pars)
+
 class UnidAnalysis( Diffuse, MLspec):
     
     def __init__(self, title=None):
         if title is None: title = f'Unid analysis with {dataset}'
         show(f"""# {title}""")
-        filename = f'files/{dataset}_pulsar_summary.csv'
+        filename = f'files/{dataset}_classification.csv' #pulsar_summary.csv'
         self.df = df =pd.read_csv(filename, index_col=0)
         print(f"""read summary file `{filename}` """)
         self.dark_mode = dark_mode
@@ -60,6 +90,10 @@ class UnidAnalysis( Diffuse, MLspec):
             self.hue_kw.update(palette='yellow magenta cyan'.split(), edgecolor=None)
         else:
             self.hue_kw.update(palette='green red blue'.split())
+
+    def __repr__(self):
+        return f"""UnidAnalysis applied to 4FGL-{dataset.upper()} \n{super().__repr__()}
+            """
 
     def check_hpm(self):
         # for diffuse plotting--avoid overhead if not needed 
@@ -92,8 +126,8 @@ class UnidAnalysis( Diffuse, MLspec):
         update_legend(ax, data, hue=hue_kw['hue'],  fontsize=12,   loc='lower left')
         return g.fig   
     
-    def _plot_psr(self, ax, hue_order=None, s=50, ):
-        df = self.df
+    def _plot_psr(self, ax, hue_order=None, s=50, df=None ):
+        df = self.df if df is None else df
         for hue, marker, color in zip(self.hue_kw['hue_order'] if hue_order is None else hue_order, 
                                     '*oD',   self.hue_kw['palette']):
             t =  df[df.loc[:,self.hue_kw['hue']]==hue]
@@ -108,11 +142,11 @@ class UnidAnalysis( Diffuse, MLspec):
         self._plot_psr(ax, hue_order=hue_order, s=10)
         return ax.figure
 
-    def zea(self, *args, size=90):
+    def zea(self, *args, size=90, hue_order=None, df=None):
         """ZEA projection of the galactic diffuse with positions of pulsars and the unid-pulsar category"""
         self.check_hpm()
         ax = self.zea_plot(*args, size=size)
-        self._plot_psr(ax)
+        self._plot_psr(ax, df=df, hue_order=hue_order)
         ax.grid(color='0.5', ls='-')
         # ax.legend(loc='upper left');
         return ax.figure
@@ -124,33 +158,31 @@ class UnidAnalysis( Diffuse, MLspec):
         kw = self.hue_kw.copy()
         kw.pop('edgecolor', '')
         return sns.pairplot(data, kind='kde', vars=vars,  corner=True, **kw).figure
-        
-    def apply_kde(self, df=None, 
-            vars='log_epeak log_fpeak d diffuse'.split(),
-            pulsars=None):
+
+
+    def pulsar_kde(self,  df=None,
+               vars='log_epeak log_fpeak d diffuse'.split()):
         """
-        Evaluate the KDE for the pure pulsar types, {pulsars}, using the {vars} features.
-        Apply to all sources, adding columns with the pulsar type names with "_kde" appended.
+        Calculate KDE for the pulsar types {pulsars}, using the {vars} features,
+        then apply normalized value to all sources, adding columns with "_kde" appended.
         """
         from pylib.kde import Gaussian_kde
-        if df is None: df=self.df
-        if pulsars is not None: pulsars = self.hue_kw['hue_order'][1:]
-        
-        for pname, subdf in df.groupby('source_type'):
-            if pname not in pulsars: continue
-            # Generate a KDE  function with the subset
-            gkde = Gaussian_kde(subdf, cols=vars)
+        df = self.df if df is None else df    
 
-            # and apply it to all sources
-            df[pname+'_kde'] = gkde(df)   
+        for name, sdf in df.groupby(self.hue_kw['hue']):
+            if name in self.psr_names[:2]: #pulsars:
+                gde = Gaussian_kde(sdf,  vars)
+                u = gde(df)
+                df[name+'_kde'] = u/np.max(u)
+        return df
 
-    def plot_kde(self,  order):
-        """Scatter plots of the `msp` vs `psr` KDE probabilities for each source type.
+    def plot_kde(self,  order,  df=None, height=4):
+        """Scatter plots of the `msp` vs `psr` KDE probabilities for the shown source types.
         """
-        data = self.df
-        g = sns.FacetGrid(data, col='source_type', col_wrap=4, 
+        data = self.df if df is None else df
+        g = sns.FacetGrid(data, col='source_type', col_wrap=3, height=height,
                         col_order=order, sharex=True, sharey=True)
-        g.map(sns.scatterplot, 'msp_kde', 'psr_kde', s=10);
+        g.map(sns.scatterplot, 'msp_kde', 'psr_kde', s=10, color=self.palette[0]);
         counts = data.groupby('source_type').size()[order]
         for ax, n  in zip(g.axes.flat, counts):
             ax.set_title(ax.get_title().split('=')[1]+ f' ({n})')
@@ -216,11 +248,64 @@ class UnidAnalysis( Diffuse, MLspec):
                         ax=ax, **self.hue_kw, **skw).set(ylabel='log flux ratio');
         return fig
 
+        
+    def select_mystery(self):
+        """Scatter plot of normalized pulsar KDE values, showing selection regions. 
+        """
+        df = self.df
+        fig, ax = plt.subplots(figsize=(8,8))
+        # size_kw = dict(size='log TS', sizes=(20,100) )
+        # hue_kw = dict(hue='source_type', hue_order='young MSP UNID-PSR'.split(),
+        #              palette='yellow magenta cyan'.split(), edgecolor=None)
+        x,y = 'psr_kde', 'msp_kde'
+        sns.scatterplot(df, ax=ax,  x=x, y=y, s=10,  **self.hue_kw)#, **size_kw);
+        update_legend(ax, df, hue='source_type' )
+        ax.set(xlabel='Normalized young probability', ylabel='Normalized MSP probability')
+
+        mys = Mystery(self.df, self.hue_kw['hue_order'], ax=ax)
+        self.mystery_info = mys.info   
+        # tag the selected unid-pulsar
+        self.mystery_df = mys.mystery_df# df[df.source_type=="unid-pulsar"][mys.selected('unid-pulsar')]
+        
+        return fig
+
+    def curvature_plots(self, dfm, dfp):
+        """Curvature $d$ distributions. Upper panels: histogram, lower panels: 
+        scatter plot with the uncertainty $\\sigma_d$. Left side is the "mystery" sources, right the pulsars.
+        """
+        def plot_curvature(df,  ax1, ax2):    
+            global fgl
+            if 'd_unc' not in df:
+                fgl = Fermi4FGL(dataset) if 'fgl' not in globals() else fgl
+                dunc= pd.Series(2*fgl.field('Unc_LP_beta'), index=fgl.index, name='d_unc').loc[df.index]
+            else:
+                dunc = df.d_unc
+            sns.histplot(df, ax=ax1, x='d', element='step',bins=np.linspace(0,2,21), edgecolor='white');
+            
+            sns.scatterplot(df, ax=ax2, x='d', y=dunc, s=20)
+        
+            ax2.set(ylabel ='$\sigma_d$', ylim=(0,1.5), xticks=np.arange(0,2.01,0.5),
+                    yticks=np.arange(0,1.2, 0.5))
+            ax2.axvline(4/3, color='pink', ls='--', 
+                        label=f"""4/3 "limit"\n> 4/3: {100*sum(df.d>4/3)/len(df):.0f}% """)
+        
+            ax2.legend(loc='upper center');
+        
+        fig = plt.figure(figsize=(16,8))
+        gs = fig.add_gridspec(2,2, height_ratios=(1,3),hspace=0.05)
+        ax1 = fig.add_subplot(gs[0,0])
+        ax2 = fig.add_subplot(gs[1,0], sharex=ax1)
+        ax3 = fig.add_subplot(gs[0,1,])
+        ax4 = fig.add_subplot(gs[1,1], sharex=ax3)
+
+        plot_curvature(dfm, ax1, ax2)
+        plot_curvature(dfp, ax3, ax4)
+        return fig
 
 def unid_doc():
 
     #=================================================================================================================
-    self = UnidAnalysis(title='Unid-pulsar analysis')
+    self = UnidAnalysis(title=f'Unid-pulsar analysis ({dataset.upper()})')
     show(f'[Unid-pulsar analysis Confluence page]'\
         '(https://confluence.slac.stanford.edu/display/SCIGRPS/Unid+analysis)')
     show_date()
@@ -232,44 +317,67 @@ def unid_doc():
     We add the diffuse energy flux background discussed in the Diffuse Background section to the three spectral features, and
     start with a "corner" plot showing the four distributions and correlations.
     """)
-    section=3
+    fignum = FigNum(3, 0.1)
+ 
     vars = 'diffuse log_fpeak log_epeak d'.split()
-    pulsars = self.hue_kw['hue_order'][1:]
+    pulsars = list(self.psr_names) #self.hue_kw['hue_order'][1:]
 
     show(f"""###  Corner plot for spectral properties and diffuse
     """)
-    show_fig(self.pulsar_pairplot, fignum=section+.1, vars=vars)
+    show_fig(self.pulsar_pairplot, fignum=fignum.next, vars=vars)
 
     show("""The upper and lower corners show separations of the three source types. In the following plots we expand those,
     with a scatter plot for the `unid-pulsar` sources.
     """)
-    show_fig(self.kde_with_scatter, fignum=section+0.2)
+    show_fig(self.kde_with_scatter, fignum=fignum.next)
     
 
-    show(f"""## Apply KDE
-        """)
-    self.apply_kde(  vars=vars, pulsars=pulsars, )
+    show(f"""## Apply KDE  """)
+    self.pulsar_kde()#  vars=vars, pulsars=pulsars[:2], )
 
-    show(self.apply_kde.__doc__.format_map(locals()))
+    show(self.pulsar_kde.__doc__.format_map(dict(pulsars=pulsars[:2], vars=vars)))
 
-    show(f"""### KDE scatter plot for the pulsar types:""")
-    show_fig( self.plot_kde,  order=pulsars, fignum=section+0.3)
+    show(f"""### KDE scatter plots
+         In Figure {fignum.next} we show scatter plots of the two KDE values for actual pulsars in the upper row,
+         and the three most numerous pulsar predictions in the lower row.
+         """)
 
-    show("""Separation is good. Now we examining the KDE values for the rest""")
-    other_names = ['unid-pulsar'] + [name  for name in np.unique(self.df.source_type)
-                                    if name!='unid-pulsar' and name not in pulsars]
-    show_fig( self.plot_kde,  order=other_names, fignum=section+0.4)
-    show(f"""The unid-pulsar and bcu-pulsar have many with low kde's for both.
-    """)
+    show_fig( self.plot_kde, order=pulsars + [x+'-pulsar' for x in 'unid bcu spp'.split()],
+             fignum=fignum)
+
+    show(f"""The upper row, with the three actual pulsar classes, shows that 
+         separation for the `psr` and `msp` class is good, while `glc` shows an
+         apparent mixture. 
+         
+         Now we examine the KDE values for the largest pulsar predictions.""")
+
+    show(f"""## Use KDE values to select non-pulsars
+         Figure {fignum.next} show the KDE values for the `unid-pulsar` sources,
+         as well as the `msp` and 'psr` sources from which the KDE's were derived.
+         Also shown are two square regions used to select a subset of the 
+         `unid-pulsar` sources that are less likely to be real pulsars.  
+         """)
+    show_fig(self.select_mystery, fignum=fignum )
+    show('Selected in regions shown',)
+    show(self.mystery_info)
+    show(f"""## Curvature plots 
+         """)
+    dfp = self.df[self.df.source_type.apply(lambda s: s in 'msp psr'.split())]
+    show_fig(self.curvature_plots, self.mystery_df, dfp)
     show('---')
-
+    return self
+#-------------------------------------------------------------
+self = None
 
 if 'unid-doc' in sys.argv: 
-    unid_doc()
+    self = unid_doc()
 
 def diffuse_doc(self, fn):
 
-    show("""# Diffuse background as a feature
+    show("""# Diffuse background as a feature""")
+    show_date()
+         
+    show("""
     In this section, we examine the Galactic diffuse component of the gamma-ray sky flux, 
     evaluating it at the position of each source, then treating it like a "feature".
     The following plots examine this for the known pulsars, and the "unid-pulsar" category.
@@ -281,6 +389,14 @@ def diffuse_doc(self, fn):
     show_fig(self.eflux_plot, fignum=fn)
     show("""It peaks around 1 GeV. We will associate this value with each source. 
     """)
+    #-----
+    show("""### Diffuse correlation for Unid predictions
+         Now we show the diffuse correlation plots:""")
+    show_fig( self.plot_diffuse_flux, unid=True, fignum=fn.next)
+    show("""Recall that the classification did not use position information. 
+         This verifies that the predicted blazar distributions are approximately isotropic--we expect
+         an enhancement near the Galactic plane since there is a gap in the blazar catalogs here.
+         The pulsar predictions are highly Galactic. """)
     #-------
     show(f"""Figure {fn.next} shows a sky map of the 1 GeV energy flux with the positions of the known pulsars
     and the unid-pulsar category.
@@ -309,7 +425,7 @@ def diffuse_doc(self, fn):
         the correlation.
         """)
     show_fig(self.fp_vs_diffuse,  fignum=fn)
-    
+   
     show(f"""The ratio of the peak flux to the DEF, in Figure {fn.next}, shows the 
     thresholds pretty clearly in this ratio.""")
     show_fig(self.flux_ratio_vs_diffuse, fignum=fn)
@@ -318,6 +434,7 @@ def diffuse_doc(self, fn):
     well with the source significance.""")
     #-----
     show_fig(self.significance_vs_flux_ratio, fignum=fn.next)
+    return self
 
     
 if 'diffuse-doc' in sys.argv: 
@@ -325,4 +442,9 @@ if 'diffuse-doc' in sys.argv:
     with capture_hide('Setup printout') as setup :
         self = UnidAnalysis(title="")
         self.check_hpm()
-    diffuse_doc(self,fn)
+    self = diffuse_doc(self,fn)
+
+# set self
+if self is None:
+    self = UnidAnalysis(title=f'UnidAnalysis ({dataset.upper()})')
+    show_date()

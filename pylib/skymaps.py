@@ -17,7 +17,7 @@ def _process_args(*args):
     Expect args to be one of:
     * a SkyCoord object (which is perhaps a list of positions)
     * lists of l, b in degrees
-    * a DataFrame with `glon` and `glat` columns
+    * pandas DataFrame or Series object with `glon` and `glat` columns
     * The name of a source known to SkyCoord  
 
     Returns a SkyCoord object using the first or first two args, and the remaining args
@@ -26,7 +26,7 @@ def _process_args(*args):
         
     if len(args)==0: raise ValueError('No args')
     arg, rest = args[0], args[1:]
-    if isinstance(arg, pd.DataFrame):
+    if isinstance(arg, pd.DataFrame) or isinstance(arg, pd.Series):
         df = arg
         sc  = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
     elif isinstance(arg, SkyCoord):
@@ -75,17 +75,70 @@ class AitoffFigure():
         self.ax.set(**kwargs)
 
     def plot(self, *args, **kwargs):
-        return self.ax.plot(*_to_radians(*args), **kwargs)
+        self.ax.plot(*_to_radians(*args), **kwargs)
+        return self
+        # return self.ax.plot(*_process_args(*args), **kwargs)
 
     def text(self, *args, **kwargs):
-        return self.ax.text(*_to_radians(*args), **kwargs)
+        pars = _to_radians(*args)
+        if len(np.atleast_1d(pars[0]))==1:
+            self.ax.text(*pars, **kwargs)
+        elif len(pars)==3:
+            for x,y,text in zip(*pars):
+                self.ax.text(x,y,text, **kwargs)
+        else:
+            raise Exception(f'text parameters not understood')
+        return self
 
     def scatter(self, *args, **kwargs):
-        return self.ax.scatter(*_to_radians(*args), **kwargs)
+        x,y = _to_radians(*args)
+        self.ax.scatter(x ,y, **kwargs)
+        return self
+        
     def __getattr__(self, name):
         # pass everything else to self.ax
         return self.ax.__getattribute__( name)
+        
+    def apply(self, func, *args, **kwargs):
+        """Pass the axis to a user-supplied function and return self."""
+        func(self, *args, **kwargs)
+        return self
+    
+    def fill(self, hparray, 
+            pixelsize:float=1,
+            colorbar:bool=False,
+            cb_kw:dict={},
+            unit:str='',
+            **kwargs):
+        """Fill with the values from the healpix array hparray
+        """
+        import healpy
+        ax = self.ax
 
+        nside = healpy.get_nside(hparray)
+        
+        # code inspired by https://stackoverflow.com/questions/46063033/matplotlib-extent-with-mollweide-projection
+        # make a mesh grid for lon,lat in degrees
+        Lon,Lat = np.meshgrid(np.linspace(180,-180, int(360/pixelsize)), # note reversed
+                            np.linspace(-90., 90, int(180/pixelsize)))
+
+        # get the pixels and look up values
+        pixels = healpy.ang2pix(nside, Lon, Lat, lonlat=True)
+        values = hparray[pixels]
+
+        # plot them (reverse Lon here too)
+        im =ax.pcolormesh(-np.radians(Lon), np.radians(Lat), values,  shading='nearest', **kwargs)
+
+        if colorbar:
+            ticklabels = cb_kw.pop('ticklabels', None)
+            cb_kw.update(label=unit,)
+            cb = plt.colorbar(im, ax=ax, **cb_kw)
+            if ticklabels is not None:
+                cb.ax.set_yticklabels(ticklabels)
+        
+        # A kluge that will show the grid on top of image
+        ax.set_axisbelow(False) 
+        return self
 
 def ait_plot(mappable,
         pars=[],
@@ -296,15 +349,43 @@ class ZEAaxis:
     def plot(self, *args, **kwargs):
         return self.ax.plot(*self._to_pixel(*args), **kwargs)
     
+    # def scatter(self, *args, **kwargs):
+    #     return self.ax.scatter(*self._to_pixel(*args), **kwargs)
+    # def text(self, *args, **kwargs):
+    #     return self.ax.text(*self._to_pixel(*args),  **kwargs)
+
+    # def __getattr__(self, name):
+    #     # pass everything else to self.ax
+    #     return self.ax.__getattribute__( name)
     def scatter(self, *args, **kwargs):
-        return self.ax.scatter(*self._to_pixel(*args), **kwargs)
+        self.ax.scatter(*self._to_pixel(*args), **kwargs)
+        return self
+    
     def text(self, *args, **kwargs):
-        return self.ax.text(*self._to_pixel(*args),  **kwargs)
+
+        pars = self._to_pixel(*args)
+        if len(np.atleast_1d(pars[0]))==1:
+            self.ax.text(*pars, **kwargs)
+        elif len(pars)==3:
+            crpix = self.wcs.wcs.crpix
+ 
+            for x,y,text in zip(*pars): #, pars[1], pars[2]):
+                # print(x,y, text)
+                if x<0 or x>= crpix[0] or  y<0 or y>=crpix[1]: continue
+                self.ax.text(x,y,text, **kwargs)
+        else:
+            raise Exception(f'text parameters not understood')
+        # self.ax.text(*self._to_pixel(*args),  **kwargs)
+        return self
 
     def __getattr__(self, name):
         # pass everything else to self.ax
         return self.ax.__getattribute__( name)
     
+    def apply(self, func, *pars, **kwargs):
+        """Pass the axis to a user-supplied function and return self."""
+        func(self, *pars, **kwargs)
+        return self    
 
 class HPmap(object):
     """
