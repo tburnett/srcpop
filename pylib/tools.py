@@ -9,14 +9,29 @@ def set_theme(argv):
 
     sns.set_theme('notebook' if 'talk' not in argv else 'talk', font_scale=1.25) 
     if 'dark' in argv:
+        # sns.set_style('darkgrid')
         plt.style.use('dark_background') #s
         plt.rcParams['grid.color']='0.5'
+        plt.rcParams['figure.facecolor']='k'
         dark_mode=True
     else:
         dark_mode=False
+        sns.set_style('whitegrid')
+        plt.rcParams['figure.facecolor']='white'
     return dark_mode
 
+def fpeak_kw(axis='x'):
+    return {axis+'label':r'$F_p \ \ \mathrm{(eV\ s^{-1}\ cm^{-2})}$', 
+            axis+'ticks': np.arange(-2,5,2),
+            axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(), 
+            }
+def epeak_kw(axis='x'):
+    return {axis+'label':'$E_p$  (GeV)',
+            axis+'ticks': np.arange(-1,1.1,1),
+            axis+'ticklabels':'0.1 1 10 '.split(),
+            }
 
+           
 
 def ternary_plot(df, columns=None, ax=None):
     import ternary
@@ -97,3 +112,25 @@ def curly_demo():
 
     ax.axis([0,5,0,7])
     plt.show()
+
+
+def set_glon(df):
+    """ add a signed glon, `sglon` column range (180,-180) """
+
+    glon = df.glon.values.copy()
+    glon[glon>180]-=360
+    df['sglon'] = glon
+
+def galactic_axes(ax, lat=(-10,11, 2), lon=(180,-181, -30), **kwargs):
+    """set axis ticks, labels for Galactic coordinates
+    """
+    xticks=np.arange(*lon)
+    yticks=np.arange(*lat)
+    def lmap(ticks):
+        return list(map(lambda x: rf'${x}^\circ$',ticks))
+    ax.set(
+        xlim=lon[:2],  xticks=xticks, xlabel='$l$',
+        xticklabels=lmap( np.where(xticks<0, xticks+360, xticks)),
+        ylim=lat[:2],  yticks=yticks, ylabel='$b$',
+        yticklabels=lmap(yticks),
+        **kwargs)

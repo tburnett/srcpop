@@ -11,7 +11,7 @@ from astropy.io import fits
 import healpy
 
 #| export
-def _process_args(*args):
+def _transform_plot_args(*args):
     """ 
     Helper for map displays position specification
     Expect args to be one of:
@@ -28,7 +28,12 @@ def _process_args(*args):
     arg, rest = args[0], args[1:]
     if isinstance(arg, pd.DataFrame) or isinstance(arg, pd.Series):
         df = arg
-        sc  = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+        if 'glon' in df: 
+            sc  = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+        elif 'GLON' in df:
+            sc  = SkyCoord(df.GLON, df.GLAT, unit='deg', frame='galactic')
+        else:
+            raise ValueError('DataFrame must have GLON,GLAT or glon,glat')
     elif isinstance(arg, SkyCoord):
         sc = arg.galactic
     elif type(arg)==str:
@@ -43,7 +48,7 @@ def _process_args(*args):
 
 def _to_radians(*args):
  
-    sc, rest = _process_args(*args)
+    sc, rest = _transform_plot_args(*args)
     # convert to radians 
     l, b = sc.l.deg, sc.b.deg
     x  = -np.radians(np.atleast_1d(l))
@@ -52,35 +57,20 @@ def _to_radians(*args):
     return [x,y] + list(rest) 
 
 def _to_pixels(*args, wcs):
-    sc, rest = _process_args(*args)
+    sc, rest = _transform_plot_args(*args)
     return wcs.world_to_pixel(sc) + tuple(rest) 
 
-
-class AitoffFigure():
-
-    """ Implement plot and text conversion from (l,b) in degrees, or a SkyCoord.
-
+class SkyPlotMixin():
     """
-    def __init__(self, fig=None, figsize=(10,5), grid_color='grey', **kwargs):
-        self.fig = fig or plt.figure(figsize=figsize)
-        if len(self.fig.axes)==0:
-            ax=self.fig.add_subplot(111, projection='aitoff')
-            ax.set(xticklabels=[], yticklabels=[], visible=True)
-            ax.grid(color='grey')
-        self.ax = self.fig.axes[0]
-
-        assert self.ax.__class__.__name__.startswith('Aitoff'), 'expect figure to have aitoff Axes instance'
-        if grid_color is not None:
-            self.ax.grid(color=grid_color)
-        self.ax.set(**kwargs)
+    A mixin for sky plotting classes, implementing common features.
+    """
 
     def plot(self, *args, **kwargs):
-        self.ax.plot(*_to_radians(*args), **kwargs)
+        self.ax.plot(*self._transform_plot_args(*args), **kwargs)
         return self
-        # return self.ax.plot(*_process_args(*args), **kwargs)
 
     def text(self, *args, **kwargs):
-        pars = _to_radians(*args)
+        pars = self._transform_plot_args(*args)
         if len(np.atleast_1d(pars[0]))==1:
             self.ax.text(*pars, **kwargs)
         elif len(pars)==3:
@@ -89,28 +79,66 @@ class AitoffFigure():
         else:
             raise Exception(f'text parameters not understood')
         return self
-
+    
     def scatter(self, *args, **kwargs):
-        x,y = _to_radians(*args)
+        """
+        """
+        x,y = self._transform_plot_args(*args)
         self.ax.scatter(x ,y, **kwargs)
         return self
-        
+    
+    def apply(self, func, *pars, **kwargs):
+        """Pass self, which behaves like an Axis, to a user-supplied function and return self."""
+        func(self, *pars, **kwargs)
+        return self   
+
+
+class AITfigure(SkyPlotMixin):
+
+    """ Implement plot and text conversion from (l,b) in degrees, or a SkyCoord.
+
+    """
+    def __init__(self, fig=None, figsize=(10,5), grid_color='grey', **kwargs):
+        """
+        fig -- [None] 
+        figsize
+        grid_color -- Suppress grid if None
+
+        """
+        self.fig = fig or plt.figure(figsize=figsize)
+        if len(self.fig.axes)==0:
+            ax=self.fig.add_subplot(111, projection='aitoff')
+            ax.set(xticklabels=[], yticklabels=[], visible=True)
+            ax.grid(color='grey')
+        self.ax = self.fig.axes[0]
+        self._transform_plot_args = _to_radians
+
+        assert self.ax.__class__.__name__.startswith('Aitoff'), 'expect figure to have aitoff Axes instance'
+        if grid_color is not None:
+            self.ax.grid(color=grid_color)
+        self.ax.set(**kwargs)
+
+       
     def __getattr__(self, name):
         # pass everything else to self.ax
         return self.ax.__getattribute__( name)
         
-    def apply(self, func, *args, **kwargs):
-        """Pass the axis to a user-supplied function and return self."""
-        func(self, *args, **kwargs)
-        return self
-    
-    def fill(self, hparray, 
+    def imshow(self, X, **kwargs):
+        """ X: either a HEALPix array or a 2-D grid appropriate for Axes.imshow
+        """
+        try:
+            return self.healpix_fill(X, **kwargs)
+        except TypeError:
+            # perhaps there is a valid way to display an array
+            return self.ax.imshow(X, **kwargs)
+           
+    def healpix_fill(self, hparray, 
             pixelsize:float=1,
             colorbar:bool=False,
             cb_kw:dict={},
             unit:str='',
             **kwargs):
-        """Fill with the values from the healpix array hparray
+        """Fill with the values from the HEALPix array hparray
         """
         import healpy
         ax = self.ax
@@ -197,6 +225,8 @@ def ait_plot(mappable,
         vmin=vmax=None
     else:
         norm = None
+
+    
     im = ax.pcolormesh(-np.radians(Lon), np.radians(Lat), arr,  shading='nearest',
         norm=norm, cmap=cmap,  vmin=vmin, vmax=vmax, alpha=alpha)
 
@@ -222,7 +252,130 @@ def ait_plot(mappable,
     return AitoffFigure(fig)
 
 
+class ZEAfigure(WCS, SkyPlotMixin):
+    """
+    Create a WCS image rectangle
 
+    - center : a SkyCoord that will be the center, or (l,b) pair, or a source name
+    - size   : (width,height) of the display (deg) or square if singlet
+    - pixelsize [0.1] : pixel size (deg)
+    - frame [None] : The frame is taken from the center SkyCoord, 
+            unless specified here --  only accept "galactic" or "fk5"
+    - proj ["ZEA"] : projection to use
+    
+    To get the WCS properties from the generated Axes object (actually WCSAxesSubplot):
+         ax.wcs.wcs.crval for (l,b)
+    """
+    def __init__(self, center, size, figsize=(8,8), fig=None, axpos=111,
+                 pixelsize:float=0.1, 
+                 frame=None, proj='ZEA', unit='', **kwargs):
+        
+        if isinstance(center, SkyCoord):
+            pass
+        elif type(center)==tuple:
+            center = SkyCoord(*center,unit='deg', frame='galactic')
+        elif type(center)==str:
+            center = SkyCoord.from_name(center).galactic
+        else: raise Exception( 'Expect center to be: SkyCoord, name, or (l,b) tuple')
+        # size is single float or tuple(floats) for wicth, height in pixelsize units
+        size = np.atleast_1d(size).astype(float)
+        if len(size)==1: size=np.full(2, size[0])
+        assert len(size)==2, 'Expect size to be single float, or (float, float) tuple'
+            
+        frame = frame or center.frame.name
+        if frame=='galactic':
+            lon, lat = center.galactic.l.deg, center.galactic.b.deg
+            lon_name,lat_name = 'GLON','GLAT'
+            xlabel, ylabel='$l$', '$b$'
+        elif frame=='fk5':
+            lon,lat = center.fk5.ra.deg, center.fk5.dec.deg
+            lon_name, lat_name = 'RA--', 'DEC-'
+            xlabel, ylabel = 'RA', 'Dec'
+        else:
+            raise Exception(f'Expect frame to be "galactic" or "fk5", not {frame}')
+        self.galactic = frame=='galactic'
+        self.frame = frame
+        self.center = center
+        self.unit=unit
+        nx, ny = (size/pixelsize).astype(int)
+        super().__init__( dict(
+            NAXIS1=nx, CTYPE1=f'{lon_name}-{proj}', CUNIT1='deg', CRPIX1=nx//2+1, CRVAL1=lon, CDELT1=-pixelsize,
+            NAXIS2=ny, CTYPE2=f'{lat_name}-{proj}', CUNIT2='deg', CRPIX2=ny//2+1, CRVAL2=lat, CDELT2=pixelsize, )
+             )
+        if fig is None: fig =  plt.figure(figsize=figsize)
+        self.figure = fig
+        self.ax = ax =  fig.add_subplot(axpos, projection=self)
+        nx, ny = self.array_shape
+        ax.set(xlim=(-0.5, nx-0.5), xlabel=xlabel, 
+                  ylim=(-0.5, ny-0.5), ylabel=ylabel)# title=title)
+        kw = dict(xlim=(-0.5, nx-0.5), xlabel=xlabel, 
+                  ylim=(-0.5, ny-0.5), ylabel=ylabel)
+        kw.update(kwargs)
+        ax.set(**kwargs)
+
+        self._transform_plot_args = _transform_plot_args
+
+    def imshow(self, dmap, cmap='jet', 
+               log=False, vmax=None, vmin=None, norm = None,
+               colorbar=False, tick_labels=None, cb_kw={},
+               ):
+        """dmap--a HEALPix array, ring indexing
+        """
+        from matplotlib import colors
+
+        ax = self.ax
+
+        def get_pixel_values(): 
+
+            import healpy
+            # make a meshgrid of the coordinates of the pixels to display
+            nside = healpy.get_nside(dmap)
+            nx, ny = self.array_shape
+            pixlists = list(range(1,nx+1)),list(range(1,ny+1))
+            cgrid = self.pixel_to_world(*np.meshgrid(*pixlists) )
+            
+            # get the corresponding pixel indices
+            if not self.galactic:   cgrid = cgrid.galactic
+            lon, lat = (cgrid.l.deg, cgrid.b.deg)
+            ipix = healpy.ang2pix(nside, lon,lat, lonlat=True)
+            # return the values
+            return dmap[ipix]    
+        
+        if log:
+            norm = colors.LogNorm(vmin=vmin,vmax=vmax)
+            vmin=vmax=None
+        else:
+            norm = None
+        
+        im = ax.imshow(get_pixel_values(),
+                    cmap=cmap,  norm=norm,  vmin=vmin, vmax=vmax,
+                    )
+        
+        if tick_labels:
+            ff = lambda d: d if d>=0 else d+360
+            ax.set_xticklabels([f'${ff(d):d}^\degree$' for d in np.linspace(150,-150, 11).astype(int)])
+        else:
+            ax.set(xticklabels=[], yticklabels=[], visible=True)
+
+        if colorbar:
+            ticklabels = cb_kw.pop('ticklabels', None)
+            cb_kw.update(label=unit,)
+            cb = plt.colorbar(im, ax=self.ax, **cb_kw)
+            if ticklabels is not None:
+                cb.ax.set_yticklabels(ticklabels)
+        return self
+
+    def scatter(self, *args, **kwargs):
+        self.ax.scatter_coord(_transform_plot_args(*args)[0], **kwargs)
+        return self
+    
+    def plot(self, *args, **kwargs):
+        sc, rest = _transform_plot_args(*args)
+        if rest:  self.ax.plot_coord(sc, rest, **kwargs)
+        else:     self.ax.plot_coord(sc, **kwargs)
+        return self
+
+ 
 
 class SquareWCS(WCS):
     """
@@ -230,11 +383,13 @@ class SquareWCS(WCS):
 
     - center : a SkyCoord that will be the center
     - size   : width and height of the display (deg)
-    - pixsize [0.1] : pixel size
-    - frame [None] : The frame is taken from the center SkyCoord, unless specified here --  only accept "galactic" or "fk5"
+    - pixelsize [0.1] : pixel size
+    - frame [None] : The frame is taken from the center SkyCoord, 
+            unless specified here --  only accept "galactic" or "fk5"
     - proj ["ZEA"] : projection to use
     
-    To get the WCS properties from the generated Axes object (actually WCSAxesSubplot): ax.wcs.wcs.crval for (l,b)
+    To get the WCS properties from the generated Axes object (actually WCSAxesSubplot):
+         ax.wcs.wcs.crval for (l,b)
     """
 
     def __init__(self, center, size, pixsize=0.1, frame=None, proj='ZEA', unit=''):
@@ -257,7 +412,7 @@ class SquareWCS(WCS):
         else:
             raise Exception(f'Expect frame to be "galactic" or "fk5", not {frame}')
 
-        nx=ny=naxis = int(size/pixsize) | 1 # make odd so central pixel has source in middle
+        nx=ny=naxis = int(size/pixsize) | 1 # make odd so central pixel is in the middle
         self.center = center
         self.frame=frame
         self.unit=unit
@@ -412,6 +567,7 @@ class HPmap(object):
 
     def __str__(self):
         return f'<{self.__class__.__name__}>, name "{self.name}" nside {self.nside} unit "{self.unit}"'
+    
     def __repr__(self): return str(self)
 
     def __call__(self, sc:'SkyCoord') -> 'value[s]':
@@ -428,7 +584,6 @@ class HPmap(object):
     def smooth(self, sigma):
             self.map = healpy.smoothing(self.map, np.radians(sigma))
 
-
     def ait_plot(self, **kwargs):
         """
         Invoke the function ait_plot to draw a representation
@@ -437,7 +592,6 @@ class HPmap(object):
         kw= dict(label=self.name, cblabel=self.unit,)
         kw.update(**kwargs)
         return ait_plot(self, **kw)
-
         
     def zea_plot(self, *args, size=10, pixelsize=0.1, 
                 fig=None, figsize=(8,8), **kwargs):
@@ -446,7 +600,7 @@ class HPmap(object):
         which can be a source name.
         Return the ZEAaxis object for plotting
         """
-        sc, _ = _process_args(*args)
+        sc, _ = _transform_plot_args(*args)
         swcs = SquareWCS(sc, size, pixelsize)
         return ZEAaxis(
             swcs.plot_map(self.map, unit=self.unit, fig=fig, figsize=figsize, **kwargs)

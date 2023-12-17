@@ -1,0 +1,370 @@
+# This is an XEphem constellation figure definition file. It must contain
+# exactly one figure for each of the 89 constellations. Leading white space,
+# blank lines and lines beginning with # are ignored. Each figure definition
+# begins with a line containing just its name followed by one or more lines 
+# of the form:
+#   drawcode ra dec [comment]
+# where
+#   drawcode is a numeric value indicating a drawing instruction as follows:
+#     0 move to ra dec
+#     1 draw solid line to ra dec
+#     2 draw dashed line to ra dec
+#   ra is decimal hours or sexigesimal h:m:s
+#   dec is decimal degrees or sexigesimal d:m:s
+#   the remainder of the line is ignored and may be any comments, typical is
+#     the name of a star being drawn to.
+Andromeda
+ 0      2.065    42.3167   gamma-1 
+ 1    1.61333       41.4   upsilon 
+ 1    1.16222    35.6167   Mirach 
+ 1   0.655556      30.85   delta 
+ 1   0.139444    29.0833   Alpheratz 
+ 0    1.16222    35.6167   Mirach 
+ 1   0.945556    38.4833   mu 
+ 1       0.83    41.0667   nu 
+ 1    1.15833    47.2333   phi 
+ 1    1.63333    48.6167   51 
+ 0   0.953333    23.4167   eta 
+ 1   0.788889    24.2667   zeta 
+ 1   0.642222       29.3   epsilon 
+ 1   0.655556      30.85   delta 
+ 1   0.614444    33.7167   pi 
+ 1      0.285    38.6667   theta 
+ 1    23.6356    43.2667   iota 
+ 1    23.6733    44.3333   kappa 
+ 1    23.6261      46.45   lambda 
+ 0    23.6356    43.2667   iota 
+ 1    23.0317    42.3167   omicron 
+ 0   0.614444    33.7167   pi 
+ 1    1.16222    35.6167   Mirach 
+Antlia
+ 0    9.48722     -35.95   move epsilon 
+ 2    10.4522   -31.0667   dotted alpha 
+ 2     10.945   -37.1333   dotted iota 
+Apus
+ 0    16.7178   -77.5167  
+ 1    16.5572   -78.8833  
+ 1    16.3389   -78.6833  
+ 1    14.7978   -79.0333  
+ 0    16.7178   -77.5167   Aps Beta 
+ 1    16.3389   -78.6833   Aps Delta1 
+Aquarius
+ 0    20.7944   -9.48333   Aqr Epsilon-2 
+ 1    20.8778   -8.98333   Aqr Mu-6 
+ 1      21.16   -11.3667   Aqr Nu-13 
+ 1    21.5261   -5.56667   Sadalsud 
+ 1    22.0967  -0.316667   Sadalmelik 
+ 1    22.3611   -1.38333   Sadachbia 
+ 1    22.5894  -0.116667   Aqr Eta-62 
+ 1    22.4211    1.38333   Aqr Pi-52 
+ 1    22.0967  -0.316667   Sadalmelik 
+ 0    22.1072   -13.8667   Aqr Iota-33 
+ 1    21.5261   -5.56667   Sadalsud 
+ 0    22.0967  -0.316667   Sadalmelik 
+ 1    22.2806   -7.78333   Aqr Theta-43 
+ 1    22.8767   -7.56667   Aqr Lambda-73 
+ 1    23.2389   -6.03333   Aqr Phi-90 
+ 1     23.265   -9.08333   Aqr Psi1-91 
+ 1    22.9111   -15.8167   Skat 
+ 1    22.8267   -13.5833   Aqr Tau2-71 
+ 1    22.8767   -7.56667   Aqr Lambda-73 
+ 0    22.8767   -7.56667   Aqr Lambda-73 
+ 1     23.265   -9.08333   Aqr Psi1-91 
+ 1    23.3828      -20.1   Aqr 98 
+ 1    23.4339   -20.6333   Aqr 99 
+ 1    23.5544      -20.9   Aqr 101 
+ 0     23.265   -9.08333   Aqr Psi1-91 
+ 1    23.1572   -21.1667   Aqr 88 
+ 1     23.165     -22.45   Aqr 89 
+ 1    23.1111   -23.7333   Aqr 86 
+Aquila
+ 0    19.9217        6.4   Aql Beta-60 
+ 1    19.8467    8.86667   Altair 
+ 1    19.7711    10.6167   Tarazed 
+ 1     19.425    3.11667   Aql Delta-30 
+ 1    19.1039   -4.86667   Aql Lambda-16 
+ 1    19.0278   -5.73333   Aql 12 
+ 0    20.1883  -0.816667   Aql Theta-65 
+ 1    19.8744          1   Aql Eta-55 
+ 1     19.425    3.11667   Aql Delta-30 
+ 1      19.09    13.8667   Aql Zeta-17 
+ 1    18.9939    15.0667   Aql Epsilo-13 
+Ara
+ 0    17.5306   -49.8667   Ara Alpha 
+ 1    16.9933     -53.15   Ara Epsilon1 
+ 1    16.9772   -55.9833   Ara Zeta 
+ 1      16.83   -59.0333   Ara Eta 
+ 1    17.5183   -60.6833   Ara Delta 
+ 1    18.1106   -50.0833   Ara Theta 
+ 1    17.5306   -49.8667   Ara Alpha 
+Aries
+ 0    3.19389    19.7167   delta 
+ 1    2.98667    21.3333   epsilon 
+ 1    2.83278      27.25   41 
+ 1    2.79833    29.2333   39 
+ 1    2.72389       27.7   35 
+ 1    2.11944      23.45   Hamal 
+ 1    1.91056       20.8   Sheratan 
+ 1      1.965    23.5833   lambda 
+ 1    2.11944      23.45   Hamal 
+ 1    2.21333       21.2   eta 
+ 0    2.98667    21.3333   epsilon 
+ 1    2.21333       21.2   eta 
+ 1    1.89222    19.2833   gamma 
+ 0    2.83278      27.25   41 
+ 1    2.72389       27.7   35 
+Auriga
+ 0    5.99222    54.2833   delta 
+ 1    5.99222    44.9333   Menkalinan 
+ 1      5.995       37.2   theta 
+ 1       4.95      33.15   iota 
+ 1    5.10833    41.2333   eta 
+ 1    5.04111    41.0667   zeta 
+ 1    5.03278    43.8167   epsilon 
+ 1    5.27778    45.9833   Capella 
+ 1    5.10833    41.2333   eta 
+ 1    5.99222    44.9333   Menkalinan 
+ 0    5.99222    54.2833   delta 
+ 1    5.27778    45.9833   Capella 
+Bootes
+ 0    13.7878      17.45   Tau 
+ 1    13.8244    15.7833   Upsilon 
+ 1    13.9111    18.3833   Muphrid 
+ 1    14.2611    19.1667   Arcturus 
+ 1    14.6789    16.4167   Pi 
+ 1    14.7494    27.0667   Pulcherrima 
+ 1    14.5778    29.7333   Sigma 
+ 1    14.5306    30.3667   Rho 
+ 1    14.5344       38.3   Gamma  
+ 1    15.0322    40.3833   Nekkar 
+ 1    15.2583       33.3   Delta  
+ 0    14.2611    19.1667   Arcturus 
+ 1    14.7494    27.0667   Pulcherrima 
+ 1    15.2583       33.3   Delta  
+ 2    15.4078    37.3667   Mu 
+ 2    15.0322    40.3833   Nekkar 
+ 0    14.5344       38.3   Gamma  
+ 1    14.2728    46.0833   Lambda 
+ 1    14.2244    51.7833   Kappa2 
+ 1      14.42      51.85   Theta 
+ 1    14.2728    46.0833   Lambda 
+Caelum
+ 0    5.07333   -35.4833   move gamma 
+ 2    4.70056   -37.1333   dotted beta 
+ 2    4.67556     -41.85   dotted alpha 
+ 2    4.51389     -44.95   dotted delta 
+Camelopardalis
+ 0      4.955      53.75   Cam 7 
+ 1    5.05722      60.45   Cam Beta-10 
+ 1    4.90111      66.35   Cam Alpha-9 
+ 1    3.83944    71.3333   Cam Gamma 
+ 1    3.82556    65.5333   From GSC 
+ 1    3.48444    59.9333   From GSC 
+ 0    4.90111      66.35   Cam Alpha-9 
+ 1    7.00111    76.9833    
+ 1    6.67556      71.75    
+ 0    5.05722      60.45   Cam Beta-10 
+ 1    3.82556    65.5333   From GSC 
+Cancer
+ 0    9.12889    10.6667   Cnc Kappa-76 
+ 1      8.745      18.15   Cnc Delta-47 
+ 1      8.275    9.18333   Cnc Beta-17 
+ 1    8.12944    21.5833   Cnc Mu2-10 
+ 1    8.72167    21.4667   Cnc Gamma-43 
+ 1      8.745      18.15   Cnc Delta-47 
+ 0    8.72167    21.4667   Cnc Gamma-43 
+ 1    8.77833    28.7667   Cnc Iota-48 
+Canes Venatici
+ 0    12.9333    38.3167   move alpha2 
+ 2    12.5622      41.35   dotted beta 
+Canis Major
+ 0    7.40167      -29.3   CMa Eta-31 
+ 1    7.24667   -26.7667   CMa Omega-28 
+ 1       7.14   -26.3833   CMa Delta-25 
+ 1    7.05056   -23.8333   CMa Omicr2-24 
+ 1    6.75222      -16.7   Sirius 
+ 1    6.93556     -17.05   CMa Iota-20 
+ 1    7.06278   -15.6333   CMa Gamma-23 
+ 1    6.90333   -12.0333   CMa Theta-14 
+ 1    6.93556     -17.05   CMa Iota-20 
+ 0       7.14   -26.3833   CMa Delta-25 
+ 1    7.02889   -27.9333   CMa Sigma-22 
+ 1    6.97722   -28.9667   Adara 
+ 1    6.83056      -32.5   CMa Kappa-13 
+ 0    6.33833     -30.05   CMa Zeta-1 
+ 1    6.97722   -28.9667   Adara 
+ 1    6.90222   -24.1833   CMa Omicr1-16 
+ 1    6.61167     -19.25   CMa Nu2-7 
+ 1    6.75222      -16.7   Sirius 
+ 0    6.53111   -23.4167   CMa Xi1-4 
+ 1    6.61167     -19.25   CMa Nu2-7 
+ 1    6.37833     -17.95   Mirzam 
+Canis Minor
+ 0      7.655    5.21667   move alpha 
+ 1    7.45222    8.28333   draw beta 
+Capricornus
+ 0    20.3011   -12.5333   Cap Alpha2-6 
+ 1      20.35   -14.7667   Cap Beta-9 
+ 1    20.4811      -17.8   Cap Rho-11 
+ 1    20.7683   -25.2667   Cap Psi-16 
+ 1    20.8639   -26.9167   Cap Omega-18 
+ 0    20.4811      -17.8   Cap Rho-11 
+ 1    21.0733     -19.85   Cap Eta-22 
+ 0    21.1189        -25   Cap 24 
+ 1    21.0733     -19.85   Cap Eta-22 
+ 1    21.0989   -17.2167   Cap Theta-23 
+ 1    21.4444      -22.4   Cap Zeta-34 
+ 1    21.4789      -21.8   Cap 36 
+ 1    21.3706   -16.8333   Cap Iota-32 
+ 0    21.7839   -16.1167   Deneb Algiedi 
+ 1    21.6683     -16.65   Cap Gamma-40 
+ 1    21.3706   -16.8333   Cap Iota-32 
+ 1    21.0989   -17.2167   Cap Theta-23 
+ 1      20.35   -14.7667   Cap Beta-9 
+Carina
+ 0    6.39944   -52.6833   Canopus 
+ 1       9.22   -69.7167   Car Beta 
+ 1    10.2289   -70.0333   Car Omega 
+ 1    10.7161   -64.3833   Car Theta 
+ 1    10.5339   -61.6833   GSC star 
+ 1    10.7256   -60.5667  
+ 1    10.8894      -58.9  
+ 1    10.5572   -58.1833  
+ 1    10.4644   -58.7333  
+ 1    10.2844   -61.3333  
+ 1      9.285   -59.2667   Car Iota 
+ 1      8.375      -59.5   Car Epsilon 
+ 1    7.94611   -52.9667   Car Chi 
+ 1    8.15889   -47.3333   Vel Gamma2 
+ 0    10.8894      -58.9  
+ 1    11.1433   -58.9833   "Nose" of figurehead 
+ 0      8.375      -59.5   Car Epsilon 
+ 2    9.36833        -55   Vel Kappa 
+ 0      9.285   -59.2667   Car Iota 
+ 2      8.745      -54.7   Vel Delta 
+Cassiopeia
+ 0   0.152778      59.15   Caph 
+ 1      0.675    56.5333   Schedar 
+ 1      0.945    60.7167   Cas Gamma-27 
+ 1    1.43056    60.2333   Cas Delta-37 
+ 1    1.90667    63.6667   Cas Epsilo-45 
+ 1    2.05722    72.4167   Cas 50 
+Centaurus
+ 0    11.5961   -63.0167   Cen Lambda 
+ 1    12.1944   -52.3667   Cen Rho 
+ 1    12.4672   -50.2167   Cen Sigma 
+ 1    12.1394   -50.7167   Cen Delta 
+ 1      11.35   -54.4833   Cen Pi 
+ 0    12.4672   -50.2167   Cen Sigma 
+ 1    12.6922     -48.95   Cen Gamma 
+ 1     13.665     -53.45   Cen Epsilon 
+ 1    13.9256   -47.2833   Cen Zeta 
+ 1    12.6922     -48.95   Cen Gamma 
+ 0      14.66   -60.8333   Rigil Kentaurus 
+ 1     13.665     -53.45   Cen Epsilon 
+ 1    14.0639   -60.3667   Hadar (Agena) 
+ 0    13.9256   -47.2833   Cen Zeta 
+ 1    14.0289      -45.6   Cen Upsilon2 
+ 1    13.9778      -44.8   Cen Upsilon1 
+ 1    13.9711      -42.1   Cen Phi 
+ 1     13.825   -41.6833   Cen Nu 
+ 1    13.8272   -42.4667   Cen Mu 
+ 1    13.9256   -47.2833   Cen Zeta 
+ 0     13.825   -41.6833   Cen Nu 
+ 1    14.1117   -36.3667   Cen Theta-5 
+ 1    14.3428   -37.8833   Cen Psi 
+ 1    14.3839   -39.5167   From GSC 7809-2783 
+ 1    14.1006   -41.1667   Cen Chi 
+ 1    13.9711      -42.1   Cen Phi 
+ 1    14.5917     -42.15   Cen Eta 
+ 1    14.9861      -42.1   Cen Kappa 
+ 1    14.6994      -37.8   From GSC 
+ 1    14.7278   -35.1667   From GSC 
+ 0     13.825   -41.6833   Cen Nu 
+ 1    13.5172      -39.4   From GSC 
+ 1    13.3433      -36.7   Cen Iota 
+ 1    13.7617   -33.0333   Cen 1 
+ 0    13.7617   -33.0333   Cen 1 
+ 1    13.8239     -34.45   Cen 2 
+ 0    13.7617   -33.0333   Cen 1 
+ 1    13.8639   -32.9833   Cen 3 
+ 0    13.7617   -33.0333   Cen 1 
+ 1    13.8867   -31.9167   Cen 4 
+Cepheus
+ 0    20.4928         63   Cep Theta-2 
+ 1     20.755    61.8333   Cep Eta-3 
+ 1    21.3094    62.5833   Alderamin 
+ 1    21.4778    70.5667   Alphirk 
+ 1    23.6556    77.6333   Alrai 
+ 1    22.8278       66.2   Cep Iota-32 
+ 1    22.4861    58.4167   Cep Delta-27 
+ 1    22.1811       58.2   Cep Zeta-21 
+ 1    22.2506      57.05   Cep Epsilo-23 
+ 1     21.725    58.7833   Cep Mu 
+ 1    21.3094    62.5833   Alderamin 
+ 0    21.4778    70.5667   Alphirk 
+ 1    22.8278       66.2   Cep Iota-32 
+ 0    22.1811       58.2   Cep Zeta-21 
+ 1    21.7572    61.1167   Cep Nu-10 
+Cetus
+ 0   0.323889   -8.81667   Cet Iota-8 
+ 1    1.40056   -8.18333   Cet Theta-45 
+ 1    2.32222   -2.96667   Mira 
+ 1    2.65833   0.333333   Cet Delta-82 
+ 1    2.72167    3.23333   Cet Gamma-86 
+ 1    2.59778        5.6   Cet Nu-78 
+ 1    2.46944    8.46667   Cet Xi2-73 
+ 1    2.74889    10.1167   Cet Mu-87 
+ 1      2.995        8.9   Cet Lambda-91 
+ 1    3.03778    4.08333   Mekab 
+ 1    2.72167    3.23333   Cet Gamma-86 
+ 0    2.65833   0.333333   Cet Delta-82 
+ 1          2   -21.0667   Cet Upsilo-59 
+ 1   0.726667   -17.9833   Diphda 
+ 1   0.323889   -8.81667   Cet Iota-8 
+ 0   0.726667   -17.9833   Diphda 
+ 1    1.73444   -15.9333   Cet Tau-52 
+Chamaeleon
+ 0    8.30889   -76.9167   Cha Alpha 
+ 1    10.5911      -78.6   Cha Gamma 
+ 1    11.9939   -78.2167   Cha Epsilon 
+ 1    12.3056      -79.3   Cha Beta 
+ 1    10.7628   -80.5333   Cha Delta2 
+ 1    10.5911      -78.6   Cha Gamma 
+Circinus
+ 0    15.2917      -58.8   move beta 
+ 1    14.7083   -64.9667   draw alpha 
+ 1    15.3894   -59.3167   draw gamma 
+Columba
+ 0       5.52   -35.4667  
+ 1    5.66056   -34.0667  
+ 1    5.84944   -35.7667  
+ 1    5.95889   -35.2833  
+ 1    6.27556   -35.1333  
+ 1    6.36833   -33.4333  
+ 0    5.84944   -35.7667  
+ 1    5.98556      -42.8  
+ 0    5.98556      -42.8   Col Eta 
+ 1    5.95889   -35.2833   Col Gamma 
+ 1    6.36833   -33.4333   Col Delta 
+Coma Berenices
+ 0    13.1661    17.5167   Alpha 
+ 1    13.1978    27.8667   Beta 
+ 1    12.4489    28.2667   Gamma 
+ 0    13.1978    27.8667   Beta 
+ 2    12.2722    23.9333   Com 7 
+ 0    13.1978    27.8667   Beta 
+ 2     12.375    25.8333   Com 12 
+ 0    13.1978    27.8667   Beta 
+ 2      12.44    27.2667   Com 14 
+Corona Australis
+ 0    19.1067     -37.05   move gamma 
+ 1    19.1578      -37.9   draw al...
+ This snippet was truncated for display; see it in full
+Shared in
+
+David Smith
+1 day ago
+
+
+

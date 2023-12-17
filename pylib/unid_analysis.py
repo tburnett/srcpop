@@ -1,30 +1,35 @@
 """
 """
+from astropy.coordinates import SkyCoord
 from pylib.ml_fitter import *
 from pylib.diffuse import Diffuse
 from pylib.ipynb_docgen import show, capture_hide, capture_show, show_fig
+from pylib.tools import set_theme, fpeak_kw, epeak_kw
 
 dataset='dr3' if 'dr3' in sys.argv else 'dr4'
+dark_mode = set_theme(sys.argv)
 
-sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
-if 'dark' in sys.argv:
-    plt.style.use('dark_background') #s
-    plt.rcParams['grid.color']='0.5'
-    dark_mode=True
-else:
-    dark_mode=False
-    plt.rcParams['figure.facecolor']='white'
+# sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
+# if 'dark' in sys.argv:
+#     plt.style.use('dark_background') #s
+#     plt.rcParams['grid.color']='0.5'
+#     dark_mode=True
+# else:
+#     dark_mode=False
+#     plt.rcParams['figure.facecolor']='white'
+
 fontsize = plt.rcParams["font.size"] # needed to be persistent??
-def fpeak_kw(axis='x'):
-    return {axis+'label':r'$F_p \ \ \mathrm{(eV\ s^{-1}\ cm^{-2})}$', 
-            axis+'ticks': np.arange(-2,5,2),
-            axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(), 
-            }
-def epeak_kw(axis='x'):
-    return {axis+'label':'$E_p$  (GeV)',
-            axis+'ticks': np.arange(-1,1.1,1),
-            axis+'ticklabels':'0.1 1 10 '.split(),
-            }
+
+# def fpeak_kw(axis='x'):
+#     return {axis+'label':r'$F_p \ \ \mathrm{(eV\ s^{-1}\ cm^{-2})}$', 
+#             axis+'ticks': np.arange(-2,5,2),
+#             axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(), 
+#             }
+# def epeak_kw(axis='x'):
+#     return {axis+'label':'$E_p$  (GeV)',
+#             axis+'ticks': np.arange(-1,1.1,1),
+#             axis+'ticklabels':'0.1 1 10 '.split(),
+#             }
 
            
 class Mystery:
@@ -46,22 +51,28 @@ class Mystery:
         def __init__(self, ax, a=0.1, b=0.08):
             z=-0.025
             self.inside =  lambda x,y: (x<a) & (y<b)
-            if ax is not None: ax.plot([z, a, a, z, z] , [z, z, b,b,z], ':', color='1.', lw=2)
+            if ax is not None: ax.plot([z, a, a, z, z] , [z, z, b,b,z], ':', lw=2,
+                                       color='1.'  if dark_mode else 'k')
             
     class Rectangle(Triangle):
         def __init__(self, ax, x=(0.06,0.55), y=(0.04, 0.54)):
             a,b = x
             c,d = y
             self.inside = lambda x,y: (x>a) & (y>c)  & (x<b) & (y<d)
-            if ax is not None: ax.plot([a,b,b,a,a], [c,c,d,d, c], '--', color='1.', lw=2)
+            if ax is not None: ax.plot([a,b,b,a,a], [c,c,d,d, c], ':',  lw=2,
+                                       color='1.'  if dark_mode else 'k')
    
     def __init__(self, df, hue_order, ax=None):
         self.df =df
+        tot = pd.Series(df.groupby('source_type').size()['unid-pulsar msp psr'.split()],name='total')
+        
         self.r = self.Rectangle(ax=ax, x=(0.05,0.4), y=(0.05,0.2))
         self.s = self.Square(ax=ax, a=0.1, b=0.15)
-        self.info= pd.Series(data= dict( ( (st, sum(self.selected(st)))
+        sel = pd.Series(data= dict( ( (st, sum(self.selected(st)))
                                         for st in  hue_order)),
-                        name='selected count')
+                        name='selected')
+        
+        self.info = pd.DataFrame([tot,sel])
         self.mystery_df =df[df.source_type=="unid-pulsar"][self.selected('unid-pulsar')] 
         
     def selected(self, st):
@@ -76,6 +87,10 @@ class UnidAnalysis( Diffuse, MLspec):
         filename = f'files/{dataset}_classification.csv' #pulsar_summary.csv'
         self.df = df =pd.read_csv(filename, index_col=0)
         print(f"""read summary file `{filename}` """)
+
+        # Add curvature uncertainty from 4FGL
+        fgl = Fermi4FGL(dataset) if 'fgl' not in globals() else fgl
+        self.df['d_unc']= pd.Series(2*fgl.field('Unc_LP_beta'), index=fgl.index).loc[df.index]
         self.dark_mode = dark_mode
         
         df['log_epeak'] = np.log10(df.Ep)
@@ -158,7 +173,6 @@ class UnidAnalysis( Diffuse, MLspec):
         kw = self.hue_kw.copy()
         kw.pop('edgecolor', '')
         return sns.pairplot(data, kind='kde', vars=vars,  corner=True, **kw).figure
-
 
     def pulsar_kde(self,  df=None,
                vars='log_epeak log_fpeak d diffuse'.split()):
@@ -248,7 +262,6 @@ class UnidAnalysis( Diffuse, MLspec):
                         ax=ax, **self.hue_kw, **skw).set(ylabel='log flux ratio');
         return fig
 
-        
     def select_mystery(self):
         """Scatter plot of normalized pulsar KDE values, showing selection regions. 
         """
@@ -273,34 +286,62 @@ class UnidAnalysis( Diffuse, MLspec):
         """Curvature $d$ distributions. Upper panels: histogram, lower panels: 
         scatter plot with the uncertainty $\\sigma_d$. Left side is the "mystery" sources, right the pulsars.
         """
-        def plot_curvature(df,  ax1, ax2):    
+        def plot_curvature(df,  ax1, ax2, title):    
             global fgl
             if 'd_unc' not in df:
                 fgl = Fermi4FGL(dataset) if 'fgl' not in globals() else fgl
                 dunc= pd.Series(2*fgl.field('Unc_LP_beta'), index=fgl.index, name='d_unc').loc[df.index]
             else:
                 dunc = df.d_unc
-            sns.histplot(df, ax=ax1, x='d', element='step',bins=np.linspace(0,2,21), edgecolor='white');
+            sns.histplot(df, ax=ax1, x='d', element='step',bins=np.linspace(0,2,25), 
+                         edgecolor='white' if dark_mode else 'k');
             
-            sns.scatterplot(df, ax=ax2, x='d', y=dunc, s=20)
+            sns.scatterplot(df, ax=ax2, x='d', y=dunc, s=40)
         
             ax2.set(ylabel ='$\sigma_d$', ylim=(0,1.5), xticks=np.arange(0,2.01,0.5),
                     yticks=np.arange(0,1.2, 0.5))
-            ax2.axvline(4/3, color='pink', ls='--', 
+            ax2.axvline(4/3, color='red', ls='--', 
                         label=f"""4/3 "limit"\n> 4/3: {100*sum(df.d>4/3)/len(df):.0f}% """)
+            ax1.axvline(4/3, color='red', ls='--', )
         
             ax2.legend(loc='upper center');
+            ax1.text(0.06, 0.8, title, transform = ax1.transAxes, fontsize=16, va='top')
         
         fig = plt.figure(figsize=(16,8))
-        gs = fig.add_gridspec(2,2, height_ratios=(1,3),hspace=0.05)
+        gs = fig.add_gridspec(2,2, height_ratios=(1,3),hspace=0.01)
         ax1 = fig.add_subplot(gs[0,0])
         ax2 = fig.add_subplot(gs[1,0], sharex=ax1)
         ax3 = fig.add_subplot(gs[0,1,])
         ax4 = fig.add_subplot(gs[1,1], sharex=ax3)
 
-        plot_curvature(dfm, ax1, ax2)
-        plot_curvature(dfp, ax3, ax4)
+        plot_curvature(dfm, ax1, ax2, f'Mystery\n({len(dfm)})')
+        plot_curvature(dfp, ax3, ax4, f'Known\n({len(dfp)})')
         return fig
+
+
+class HII():
+    """ Manage the HII region list    
+    """
+    reference = """ "A CS(2-1) survey of UC HII regions" 
+            [(Bronfman+, 1996)](https://ui.adsabs.harvard.edu/abs/1996A%26AS..115...81B/abstract) """
+    cds_root = "ftp://cdsarc.u-strasbg.fr/ftp/J/A+AS/115/81/"
+    
+    def __init__(self):
+        from astropy.table import Table
+        t = Table.read(self.cds_root+"table1.dat",
+                readme=self.cds_root+"ReadMe",
+                format="ascii.cds")
+        self.df = df=  t.to_pandas().rename(columns={'GLAT':'glat', 'GLON':'glon'})
+        self.skycoord = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+    
+    def match(self, other, offset=0):
+        """ match other, with glon offset.  Add fields 'idx' and 'sep' to  it.
+        """  
+        othercoord = SkyCoord(np.mod(other.glon+offset,360), other.glat, unit='deg', frame='galactic')            
+        idx, sep_angle, _ = othercoord.match_to_catalog_sky(self.skycoord)
+        other['idx'], other['sep'] = idx, sep_angle.degree
+        return other
+
 
 def unid_doc():
 
@@ -323,15 +364,17 @@ def unid_doc():
     pulsars = list(self.psr_names) #self.hue_kw['hue_order'][1:]
 
     show(f"""###  Corner plot for spectral properties and diffuse
-    """)
-    show_fig(self.pulsar_pairplot, fignum=fignum.next, vars=vars)
+         In Figure {fignum.next} we show distributions of the four features for each
+        of the three source types.
+        """)
+    show_fig(self.pulsar_pairplot, fignum=fignum, vars=vars)
 
-    show("""The upper and lower corners show separations of the three source types. In the following plots we expand those,
-    with a scatter plot for the `unid-pulsar` sources.
-    """)
+    show("""The first and last pairs, the flux and spectral shape variable, correlations,
+         are particularly interesting. Here we expand them with a scatter plot for the
+         unid-pulsar` sources.
+         """)
     show_fig(self.kde_with_scatter, fignum=fignum.next)
-    
-
+ 
     show(f"""## Apply KDE  """)
     self.pulsar_kde()#  vars=vars, pulsars=pulsars[:2], )
 
@@ -352,18 +395,31 @@ def unid_doc():
          Now we examine the KDE values for the largest pulsar predictions.""")
 
     show(f"""## Use KDE values to select non-pulsars
-         Figure {fignum.next} show the KDE values for the `unid-pulsar` sources,
-         as well as the `msp` and 'psr` sources from which the KDE's were derived.
-         Also shown are two square regions used to select a subset of the 
-         `unid-pulsar` sources that are less likely to be real pulsars.  
+         Figure {fignum.next} shows the KDE values for the `unid-pulsar` sources,
+         as well as the `msp` and `psr` sources from which the KDE's were derived.
+         Also shown are two rectangular regions used to select a subset of the 
+         `unid-pulsar` sources that are less likely to be actual undetected pulsars.
+         We refer to theses as "mystery" sources below.  
          """)
     show_fig(self.select_mystery, fignum=fignum )
     show('Selected in regions shown',)
     show(self.mystery_info)
-    show(f"""## Curvature plots 
+    show(f"""## Spectral Curvature  
+         The spectral curvature $d$ appears to be a defining characteristic of the mystery sources, 
+         with a distribution extending to higher curvatures than that for the known pulsars. 
+         As was shown in 3PC, the value of 4/3, the maximum allowed for curvature radiation,
+         is consistent with an upper limit. However, these sources 
+         are weaker, with larger uncertainties. Thus in Figure {fignum.next} we compare uncertainty
+         vs. the curvature values for the mystery sources on the left, and the known pulsars on the
+         right. 
          """)
     dfp = self.df[self.df.source_type.apply(lambda s: s in 'msp psr'.split())]
-    show_fig(self.curvature_plots, self.mystery_df, dfp)
+    show_fig(self.curvature_plots, self.mystery_df, dfp, fignum=fignum)
+    show(f"""The spectral fitting procedure imposed an upper limit of 2&mdash;its effect on the value and 
+         uncertainty is apparent. Accounting for that, few if any are more that one sigma from that
+         value, but the large fraction of the mystery sources in that region strongly hints that
+         the underlying distribution does extend beyond 4/3.
+         """)
     show('---')
     return self
 #-------------------------------------------------------------
