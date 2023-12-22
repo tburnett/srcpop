@@ -81,10 +81,10 @@ class Mystery:
 
 class UnidAnalysis( Diffuse, MLspec):
     
-    def __init__(self, title=None):
+    def __init__(self, title=None, nc=2):
         if title is None: title = f'Unid analysis with {dataset}'
         show(f"""# {title}""")
-        filename = f'files/{dataset}_classification.csv' #pulsar_summary.csv'
+        filename = f'files/{dataset}_{nc}_class_classification.csv' #pulsar_summary.csv'
         self.df = df =pd.read_csv(filename, index_col=0)
         print(f"""read summary file `{filename}` """)
 
@@ -501,6 +501,6 @@ if 'diffuse-doc' in sys.argv:
     self = diffuse_doc(self,fn)
 
 # set self
-if self is None:
-    self = UnidAnalysis(title=f'UnidAnalysis ({dataset.upper()})')
-    show_date()
+# if self is None:
+#     self = UnidAnalysis(title=f'UnidAnalysis ({dataset.upper()})')
+#     show_date()

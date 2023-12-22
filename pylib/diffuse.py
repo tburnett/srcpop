@@ -59,7 +59,10 @@ class Diffuse:
     def get_values_at(self, *args):
         """Return log10 values in units of eV s-1 cm-2 deg-2
         """
-        return self.diffuse_hpm(_process_args(*args)[0])
+        if len(args)==1:
+            sdir = args[0]
+            return self.diffuse_hpm(sdir)
+        raise  Exception(f'Unexpected call {args}')
         
     def plot_limits(self, ax, n=50, **kwargs):
         self.check_hpm()

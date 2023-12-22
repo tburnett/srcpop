@@ -260,26 +260,12 @@ class MLfitter(MLspec):
         sns.ecdfplot(pp, **hue_kw, ax=ax2, x='p_pulsar', legend=False);
         return fig
 
-    def plot_prediction_association(self, ):
-        """Bar chart showing the prediction counts for each association type, according 
-        to the predicted target class. 
+    def prediction_association_table(self):
+        """The number of sources classified as each of the three targets, according to the 
+        association type.
         """
-        def curly(x,y, scale=(1,1), ax=None, color='k'):
-            # uses transAxes, scale as (x,y) tuple
-            import matplotlib.transforms as mtrans
-            from matplotlib.text import TextPath
-            from matplotlib.patches import PathPatch
-            
-            if not ax: ax=plt.gca()
-            tp = TextPath((0, 0), "}", size=1)
-            trans = (  mtrans.Affine2D().scale(*scale) 
-                    + mtrans.Affine2D().translate(x,y) 
-                    + ax.transAxes) 
-            pp = PathPatch(tp, lw=0, fc=color, transform=trans)
-            ax.add_artist(pp)
-            
         df = self.df.copy()
-
+        
         # combine a bunch of the class1 guys into "other"
         def make_other(s):
             if s in 'bll fsrq psr msp bcu spp glc unid'.split():
@@ -292,59 +278,28 @@ class MLfitter(MLspec):
                 columns=x, index=y, values=0)
             return ret.reindex(index='bll fsrq psr msp glc bcu spp other unid'.split())
             
-        df_plot = simple_pivot(df)
+        t=simple_pivot(df)
+        t[np.isnan(t)]=0
+        return t.astype(int)
+
+    def plot_prediction_association(self, table):
+        """Bar chart showing the prediction counts for each association type, according 
+        to the predicted target class. 
+        """
+    
         fig, ax = plt.subplots()
-        ax = df_plot.plot.barh(stacked=True, ax=ax, color=self.palette)
+        ax = table.plot.barh(stacked=True, ax=ax, color=self.palette)
         ax.invert_yaxis()
         ax.set(title='Prediction counts', ylabel='Association type')
         ax.legend(bbox_to_anchor=(0.78,0.75), loc='lower left', frameon=True ,
                 title='Target class')
-        # curly bracket to denote pulsar
-        # ax.text(0.15, 0.6, '}', fontsize=80, va='center', transform=ax.transAxes);
-        curly(0.12, 0.52, (0.15,0.3), ax=ax, color='white')
-        ax.text(0.22, 0.61, 'pulsar target', va='center', 
+        # curly bracket to denote pulsar associations
+        ax.text(0.07, 0.6, '}', fontsize=80, va='center', transform=ax.transAxes) 
+        ax.text(0.22, 0.6, 'pulsar target', va='center', 
                 color='white' if dark_mode else 'k', transform=ax.transAxes)
         return fig
 
-    # def write_summary(self, 
-    #         summary_file=f'files/{dataset}_classification.csv', 
-    #         overwrite=True):
-        
-    #     if Path(summary_file).is_file() and not overwrite:
-    #         print(f'File `{summary_file}` exists--not overwriting.')
-    #         return
-        
-    #     def set_pulsar_type(s):
-    #         if s.association in self.psr_names: return s.association
-    #         if s.prediction=='pulsar': return s.association+'-pulsar'
-    #         return np.nan
-    #     def set_source_type(s):
-    #         return s.association if s.association in self.psr_names else \
-    #             s.association+'-'+s.prediction
-
-    #     def get_diffuse(df):
-    #         from astropy.coordinates import SkyCoord
-    #         from pylib.diffuse import Diffuse
-    #         diff = Diffuse()
-    #         sdirs = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
-    #         return  diff.get_values_at(sdirs)
-            
-    #     df = self.df.copy()
-        
-    #     df['p_pulsar'] = self.predict_prob(query=None).loc[:,'p_pulsar']
-        
-    #     # set source_type for pulsars and pulsar-pred;ctions
-    #     df['source_type'] = df.apply(set_source_type, axis=1)
-    #     df = df[df.source_type.notna()]
-            
-
-    #     # add a diffuse column
-    #     df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
-
-    #     cols= 'source_type glat glon significance r95 Ep Fp d p_pulsar diffuse'.split()
-    #     df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
-    #     print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
-
+   
     def write_summary(self, 
                 summary_file=f'files/{dataset}_classification.csv', 
                 overwrite=True):
@@ -434,6 +389,8 @@ if 'doc' in sys.argv:
              caption="""Corner plot of the training sources showing the four features for each of 
              the three targets. """) 
     self.train_predict()
+    show("""Note especially the roles of the variability and the correlation of curvature $d$ and $E_p$
+         in distinguishing pulsars from blazars. """)
 
     show(f"""## Fitting
     This means training the model with the target classes, then using it to predict the most likely
@@ -455,8 +412,12 @@ if 'doc' in sys.argv:
     show(f"""### Prediction statistics
     This shows the category assignment for all the association types, including the targets.
     """)
-    show_fig(self.plot_prediction_association, fignum=fn.next, )
+    table = self.prediction_association_table()
 
+    show_fig(self.plot_prediction_association, table, fignum=fn.next, )
+    show(f"""#### Table with values
+         """)
+    show(table)
     
     show(f"""## Unid prediction probabilities
     The prediction procedure estimates the three probabilities. In Figure {fn.next} we show the distribution of the pulsar
