@@ -5,31 +5,13 @@ from pylib.ml_fitter import *
 from pylib.diffuse import Diffuse
 from pylib.ipynb_docgen import show, capture_hide, capture_show, show_fig
 from pylib.tools import set_theme, fpeak_kw, epeak_kw
+from pylib.skymaps import ZEAfigure, AITfigure
 
 dataset='dr3' if 'dr3' in sys.argv else 'dr4'
 dark_mode = set_theme(sys.argv)
 
-# sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
-# if 'dark' in sys.argv:
-#     plt.style.use('dark_background') #s
-#     plt.rcParams['grid.color']='0.5'
-#     dark_mode=True
-# else:
-#     dark_mode=False
-#     plt.rcParams['figure.facecolor']='white'
 
 fontsize = plt.rcParams["font.size"] # needed to be persistent??
-
-# def fpeak_kw(axis='x'):
-#     return {axis+'label':r'$F_p \ \ \mathrm{(eV\ s^{-1}\ cm^{-2})}$', 
-#             axis+'ticks': np.arange(-2,5,2),
-#             axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(), 
-#             }
-# def epeak_kw(axis='x'):
-#     return {axis+'label':'$E_p$  (GeV)',
-#             axis+'ticks': np.arange(-1,1.1,1),
-#             axis+'ticklabels':'0.1 1 10 '.split(),
-#             }
 
            
 class Mystery:
@@ -148,23 +130,38 @@ class UnidAnalysis( Diffuse, MLspec):
             t =  df[df.loc[:,self.hue_kw['hue']]==hue]
             ax.scatter(t, marker=marker, s=s, color=color, label = f'({len(t)}) {hue}')
         ax.legend(fontsize=14)
+
+    def _scatter(self, ax, hue_order=None, s=50, df=None ):
+        df = self.df if df is None else df
+        for hue, marker, color in zip(self.hue_kw['hue_order'] if hue_order is None else hue_order, 
+                                    '*oD',   self.hue_kw['palette']):
+            t =  df[df.loc[:,self.hue_kw['hue']]==hue]
+            ax.scatter(t, marker=marker, s=s, color=color, label = f'({len(t)}) {hue}')
+        ax.ax.legend(fontsize=14)
         
     def ait(self, hue_order=None):
         """Aitoff plot of the galactic diffuse showing locations of pulsars and the unid-pulsar category.
         """
         self.check_hpm()
-        ax = self.ait_plot(figsize=(20,8))#cmap='gist_gray', log=False,);
-        self._plot_psr(ax, hue_order=hue_order, s=10)
-        return ax.figure
+        # ax = self.ait_plot(figsize=(20,8))#cmap='gist_gray', log=False,);
+        # self._plot_psr(ax, hue_order=hue_order, s=10)
+        aitfig = AITfigure( figsize=(20,8))
+        aitfig.imshow(self.diffuse_hpm.map, cmap='gist_grey');
+        self._scatter(aitfig, hue_order=hue_order, s=10)
+        return aitfig.figure
 
-    def zea(self, *args, size=90, hue_order=None, df=None):
+    def zea(self, center, size=90, hue_order=None, df=None):
         """ZEA projection of the galactic diffuse with positions of pulsars and the unid-pulsar category"""
         self.check_hpm()
-        ax = self.zea_plot(*args, size=size)
-        self._plot_psr(ax, df=df, hue_order=hue_order)
-        ax.grid(color='0.5', ls='-')
-        # ax.legend(loc='upper left');
-        return ax.figure
+        # ax = self.zea_plot(*args, size=size)
+        # self._plot_psr(ax, df=df, hue_order=hue_order)
+        # ax.grid(color='0.5', ls='-')
+        # # ax.legend(loc='upper left');
+        zeafig = ZEAfigure(center, size=size )
+        zeafig.imshow(self.diffuse_hpm.map, cmap='gist_grey')
+        self._scatter(zeafig, hue_order=hue_order, s=10)
+
+        return zeafig.figure
 
     def pulsar_pairplot(self, vars):
         """The corner plot with KDE contours for the spectral features and the diffuse value.  
@@ -346,7 +343,7 @@ class HII():
 def unid_doc():
 
     #=================================================================================================================
-    self = UnidAnalysis(title=f'Unid-pulsar analysis ({dataset.upper()})')
+    self = UnidAnalysis(title=f'Unid-pulsar analysis ({dataset.upper()})', nc=3)
     show(f'[Unid-pulsar analysis Confluence page]'\
         '(https://confluence.slac.stanford.edu/display/SCIGRPS/Unid+analysis)')
     show_date()
@@ -490,13 +487,15 @@ def diffuse_doc(self, fn):
     well with the source significance.""")
     #-----
     show_fig(self.significance_vs_flux_ratio, fignum=fn.next)
+    show("""---
+[Fermi-lat Confluence link](https://confluence.slac.stanford.edu/display/SCIGRPS/Diffuse+background)""")
     return self
 
     
 if 'diffuse-doc' in sys.argv: 
     fn = FigNum(n=2, dn=0.1)
     with capture_hide('Setup printout') as setup :
-        self = UnidAnalysis(title="")
+        self = UnidAnalysis(title="", nc=3)
         self.check_hpm()
     self = diffuse_doc(self,fn)
 

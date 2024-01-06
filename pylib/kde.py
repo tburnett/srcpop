@@ -4,7 +4,7 @@ import pandas as pd
 
 
 class Gaussian_kde(stats.gaussian_kde):
-    """Adapt the stats version to use a DataFrame as input
+    """
     """
     def __init__(self, data: pd.DataFrame, 
                  cols=None, 
@@ -34,3 +34,7 @@ class Gaussian_kde(stats.gaussian_kde):
             return pd.DataFrame.from_dict(dict(x=m1-m2, y=m1+m2, ))
         return cls(meas(n), 'x y'.split())
 
+Gaussian_kde.__doc__ = f"""\
+Adapt stats.gaussian_kde to use a DataFrame as input
+{stats.gaussian_kde.__dict__}
+"""

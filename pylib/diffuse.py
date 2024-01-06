@@ -96,26 +96,6 @@ class Diffuse:
         kw = dict(color='0.5', alpha=0.6)
         kw.update(kwargs)
         ax.fill_between(x1, y1, y2, **kw );
-
-    # def ait_plot(self, figsize=(20,8), **kwargs):
-    #     """
-    #     """
-    #     self.check_hpm()
-    #     fig=plt.figure(figsize=figsize)
-    #     kw = dict(log=False, fig=fig, grid_color='grey', pixelsize=1, colorbar=False, 
-    #                     cmap='gist_gray' if self.dark_mode else 'Greys')
-    #     kw.update(kwargs)
-    #     return self.diffuse_hpm.ait_plot(**kw)#, alpha=0.1)
-
-    # def zea_plot(self, *args, fig=None, size=10, **kwargs):
-    #     self.check_hpm()
-    #     if fig is None:
-    #         fig = plt.figure(figsize=(10,10))
-    #     kw = dict(colorbar=False, log=False,  cmap='gist_gray' if self.dark_mode else 'Greys')
-    #     kw.update(kwargs)
-    #     center, _ = _process_args(*args)
-        
-    #     return self.diffuse_hpm.zea_plot( center,  size=size, fig=fig, axpos=111, **kw, )
         
     def fluxticks(self, x, ):
         ticks =  np.arange(0,2.1,1).astype(int)
@@ -150,7 +130,7 @@ class Diffuse:
         ax1.set(**self.fluxticks('x') )
         
         sns.ecdfplot(data, ax=ax2, x=x, legend=False,  **hkw)
-        self.plot_limits( ax2, color='0.3')
+        self.plot_limits( ax2, color='0.3' if dark_mode else '0.8')
         ax2.set(**self.fluxticks('x') )
         return fig
     
