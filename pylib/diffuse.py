@@ -7,9 +7,9 @@ import healpy
 import seaborn as sns
 
 from pylib.skymaps import HPmap
-from pylib.tools import  update_legend, set_theme
+from pylib.tools import  update_legend #, set_theme
 
-dark_mode = set_theme(sys.argv)
+# dark_mode = set_theme(sys.argv)
 
 class Diffuse:
     

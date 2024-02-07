@@ -506,7 +506,7 @@ class SEDplotter:
         """ set up the catalogs that have specfunc columns"""
         from pylib.catalogs import UWcat, Fermi4FGL
         self.uw = UWcat('uw1410')
-        self.uw.index = self.uw.jname  # make it indexsed by the uw jname
+        self.uw.index = self.uw.jname  # make it indexed by the uw jname
         self.uw.index.name = 'UW jname'
         self.fcat = Fermi4FGL()
         self.plec =plec
@@ -572,12 +572,15 @@ def sedplotgrid(df, ncols=10, height=1, fignum=None, **kwargs):
         tt.append(fmt_info(info))
         sp.plots(info, ax=ax)
         ax.set(**kw)
+
+    for ax in axx.flat[len(tt):]: ax.set(visible=False)
     
+    note = 'uw1410 in blue, 4FGL-DR4 in red.' if 'uw_name' in df else '' 
     show(fig, 
          fignum=fignum,
          tooltips=tt, 
          caption=f"""SED plots. Scales for the x and y axes are {ax.get_xlim()} GeV and 
-         {ax.get_ylim()} eV cm-2 s-1. uw1410 in blue, 4FGL-DR4 in red.""")
+         {ax.get_ylim()} eV cm-2 s-1. {note}""")
     
 def show_sed_plots(df, fignum=None, ncols=15, height=0.5):
     df = df.copy()

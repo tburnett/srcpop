@@ -6,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 
 def set_theme(argv):
-
+    plt.rcParams['figure.figsize']=[5,3]
     sns.set_theme('notebook' if 'talk' not in argv else 'talk', font_scale=1.25) 
     if 'dark' in argv:
         # sns.set_style('darkgrid')

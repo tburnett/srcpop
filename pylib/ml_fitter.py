@@ -30,7 +30,7 @@ class MLspec:
     features: tuple = tuple("""log_var log_fpeak log_epeak d """.split())
     target : str ='target'
     target_names:tuple = tuple('bll fsrq pulsar'.split())
-    psr_names: tuple = tuple('psr msp glc'.split()) #spp
+    psr_names: tuple = tuple('psr msp'.split()) # no glc
 
     palette =['yellow', 'magenta', 'cyan'] if dark_mode else 'green red blue'.split()
     model_name : str = 'SVC'
@@ -60,6 +60,17 @@ class MLspec:
         F,kw = cdict[self.model_name]
         return F(**kw)
 
+def lp_pars(fgl):
+    # extract LP spectral function from 4FGL catalog object get its parameters
+    df = pd.DataFrame(index=fgl.index)
+    df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
+    sed = df['lp_spec']
+    df['Ep'] = 10**sed.apply(lambda f: f.epeak)
+    df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
+    df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
+    df['d_unc'] = 2*fgl.field('unc_LP_beta')
+    return df.drop(columns=['lp_spec'])
+
 class MLfitter(MLspec):
 
     def __init__(self, fgl=dataset):
@@ -88,22 +99,32 @@ class MLfitter(MLspec):
             -> {len(df)} remain""")
 
         # extract LP spectral function, get its parameters
-        df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
-        sed = df['lp_spec']
-        df['Ep'] = 10**sed.apply(lambda f: f.epeak)
-        df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
-        df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
+        # df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
+        # sed = df['lp_spec']
+        # df['Ep'] = 10**sed.apply(lambda f: f.epeak)
+        # df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
+        # df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
 
-        # lower-case class1, combine 'unk' and ''  associations to 'unid'
+
+        # create association with lower-case class1, combine 'unk' and '' to 'unid'
         def reclassify(class1):            
             cl = class1.lower()
             return 'unid' if cl in ('unk', '') else cl
-            # if cl in 'bll fsrq psr msp bcu spp glc unid'.split():
-            #     return cl
-            # if cl=='' or cl=='unk': return 'unid'
-            # return cl
-
+   
         df['association'] = df.class1.apply(reclassify)
+
+        # append LP columns from  catalog
+        df = pd.concat([df, lp_pars(fgl).loc[df.index]], axis=1)
+        if dataset=='dr4':
+            # replace with common DR3 if DR4
+            dr3 = Fermi4FGL('dr3')
+            lp3 = lp_pars(dr3)
+            df['hasdr3'] =np.isin(df.index, dr3.index)
+            common = df[df.hasdr3].index
+            print(f'Apply DR3 LP values for all but {sum(~df.hasdr3)} sources.')
+            lpcols='Ep Fp d d_unc'.split()
+            df.loc[common,lpcols]=  lp3.loc[common,lpcols]
+
         # append columns with logs needed later
         df['log_var'] = np.log10(df.variability)
         df['log_epeak'] = np.log10(df.Ep)
@@ -337,7 +358,7 @@ class MLfitter(MLspec):
             # add a diffuse column
             df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
 
-            cols= 'source_type glat glon significance r95 Ep Fp d diffuse p_bll p_fsrq p_pulsar'.split()
+            cols= 'source_type glat glon significance r95 Ep Fp d hasdr3 diffuse p_bll p_fsrq p_pulsar'.split()
             df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
             print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
 
@@ -354,7 +375,7 @@ if 'doc' in sys.argv:
     show_date()
     with capture_show('setup printout') as setup_print:
         self = MLfitter()
-        # show(setup_print)
+        show(setup_print)
 
     show(f"""
 
@@ -369,7 +390,7 @@ if 'doc' in sys.argv:
     
     * __Targets__: We observe that 90% of the associated sources are pulsars (MSP (`msp`) or young (`psr`) or 
     blazars, BL Lac (`bll`) or FSRQ (`fsrq`), including `bcu`. Thus we choose three classes for training:
-    pulsar=`psr+msp+glc`,
+    pulsar=`psr+msp`,
     combined to represent pulsars,  `bll`, and `fsrq`. Note that this does not include the blazar `bcu` class, as 
     it is a mixture and we choose to distinguish `bll` from `fsrq`.
 

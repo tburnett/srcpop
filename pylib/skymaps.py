@@ -62,7 +62,7 @@ def _to_pixels(*args, wcs):
 
 class SkyPlotMixin():
     """
-    A mixin for sky plotting classes, implementing common features.
+    A mix-in for sky plotting classes, implementing common features.
     """
 
     def plot(self, *args, **kwargs):
@@ -84,20 +84,26 @@ class SkyPlotMixin():
         """
         """
         x,y = self._transform_plot_args(*args)
-        self.ax.scatter(x ,y, **kwargs)
+        self.mappable = self.ax.scatter(x ,y, **kwargs)
+        return self
+    
+    def colorbar(self, **kwargs):
+        if hasattr(self, 'mappable'):
+            self.cbar=self.ax.figure.colorbar(self.mappable, **kwargs)
         return self
     
     def apply(self, func, *pars, **kwargs):
         """Pass self, which behaves like an Axis, to a user-supplied function and return self."""
         func(self, *pars, **kwargs)
         return self   
+    
+    def legend(self, *pars, **kwargs):
+        self.ax.legend(*pars, **kwargs)
+        return self
 
 
 class AITfigure(SkyPlotMixin):
 
-    """ Implement plot and text conversion from (l,b) in degrees, or a SkyCoord.
-
-    """
     def __init__(self, fig=None, figsize=(10,5), grid_color='grey', **kwargs):
         """
         fig -- [None] 
@@ -105,20 +111,19 @@ class AITfigure(SkyPlotMixin):
         grid_color -- Suppress grid if None
 
         """
-        self.fig = fig or plt.figure(figsize=figsize)
-        if len(self.fig.axes)==0:
-            ax=self.fig.add_subplot(111, projection='aitoff')
+        self.figure = fig or plt.figure(figsize=figsize)
+        if len(self.figure.axes)==0:
+            ax=self.figure.add_subplot(111, projection='aitoff')
             ax.set(xticklabels=[], yticklabels=[], visible=True)
             ax.grid(color='grey')
-        self.ax = self.fig.axes[0]
+        self.ax = self.figure.axes[0]
         self._transform_plot_args = _to_radians
 
         assert self.ax.__class__.__name__.startswith('Aitoff'), 'expect figure to have aitoff Axes instance'
         if grid_color is not None:
             self.ax.grid(color=grid_color)
         self.ax.set(**kwargs)
-
-       
+        
     def __getattr__(self, name):
         # pass everything else to self.ax
         return self.ax.__getattribute__( name)
@@ -166,6 +171,7 @@ class AITfigure(SkyPlotMixin):
         
         # A kluge that will show the grid on top of image
         ax.set_axisbelow(False) 
+        self.mappable= im # for processing by colorbar
         return self
 
 def ait_plot(mappable,
@@ -179,7 +185,7 @@ def ait_plot(mappable,
         vmin=None, vmax=None,  vlim=None, pctlim=None,
         log=False,
         colorbar:bool=True,
-        cblabel='',
+
         unit='',
         grid_color='grey',
         cb_kw={},
@@ -347,7 +353,7 @@ class ZEAfigure(WCS, SkyPlotMixin):
         else:
             norm = None
         
-        im = ax.imshow(get_pixel_values(),
+        self.mappable = im = ax.imshow(get_pixel_values(),
                     cmap=cmap,  norm=norm,  vmin=vmin, vmax=vmax,
                     )
         
@@ -366,7 +372,7 @@ class ZEAfigure(WCS, SkyPlotMixin):
         return self
 
     def scatter(self, *args, **kwargs):
-        self.ax.scatter_coord(_transform_plot_args(*args)[0], **kwargs)
+        self.mappable = self.ax.scatter_coord(_transform_plot_args(*args)[0], **kwargs)
         return self
     
     def plot(self, *args, **kwargs):

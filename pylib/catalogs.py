@@ -372,8 +372,6 @@ class Fermi4FGL(CatDF, pd.DataFrame):
         - src_name - The 4FGL name
         - func_name - one of PLEC4, LP, PL, default
         """
-
-
         specs = dict(
             PLEC4=(PLSuperExpCutoff4,'PLEC_Flux_Density PLEC_IndexS PLEC_ExpfactorS PLEC_Exp_Index'.split()),
             LP = (LogParabola, 'LP_Flux_Density LP_Index LP_beta Pivot_Energy'.split(), ),
@@ -385,4 +383,13 @@ class Fermi4FGL(CatDF, pd.DataFrame):
                        LogParabola='LP', PowerLaw='PL')[row['SpectrumType']]
         func, parnames = specs.get(func_name if func_name !='default'  else default)    
         pars = [row[name] for name in parnames] 
-        return func(pars, e0=row['Pivot_Energy']) if pars is not None else None     
+        return func(pars, e0=row['Pivot_Energy']) if pars is not None else None    
+
+    def get_series(self, name):
+        """Return the full record for the source as a Pandas Series object
+        """
+        index = list(self.index).index(name)
+        assert index>=0, f'Failed to find {name}'
+        s = self.data[index]
+        cols = self.data.columns
+        return pd.Series(dict( (c, s.field(c)) for c in cols.names),  name=name) 

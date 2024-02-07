@@ -24,6 +24,12 @@ class Gaussian_kde(stats.gaussian_kde):
         assert np.all(np.isin( self.columns, df.columns)), \
             f'The DataFrame does not have the columns {list(self.columns)}'
         return  self.evaluate(df.loc[:,self.columns].to_numpy().T) 
+    
+    def pdf(self, df):
+        """ For convenience"""
+        return self.evaluate(df.loc[:,self.columns].T) 
+    
+
         
     @classmethod
     def example(cls, n=2000):
