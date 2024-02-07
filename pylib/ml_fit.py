@@ -27,7 +27,7 @@ def lp_pars(fgl):
     df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
     df['d_unc'] = 2*fgl.field('unc_LP_beta')
     return df.drop(columns=['lp_spec'])
-    
+
 #=======================================================================
 class MLfit(SKlearn):
 
@@ -50,51 +50,6 @@ class MLfit(SKlearn):
         return f"""MLfit applied to 4FGL-{dataset.upper()} \n\n{super().__repr__()}
         """
     
-    # def load_data(self, fgl):
-    #     """Extract subset of 4FGL information relevant to ML pulsar-like selection
-    #     """
-
-    #     cols = 'glat glon significance r95 variability class1'.split()
-    #     fgl = Fermi4FGL(fgl)
-        
-    #     # remove sources without variability or r95
-    #     df = fgl.loc[:,cols][(fgl.variability>0) & (fgl.r95>0) &(fgl.significance>4)].copy()
-    #     print(f"""Remove {len(fgl)-len(df)} without valid r95 or variability or significance>4
-    #         -> {len(df)} remain""")
-
-    #     # extract LP spectral function, get its parameters
-    #     df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
-    #     sed = df['lp_spec']
-    #     df['Ep'] = 10**sed.apply(lambda f: f.epeak)
-    #     df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
-    #     df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
-
-    #     # lower-case class1, combine 'unk' and ''  associations to 'unid'
-    #     def reclassify(class1):            
-    #         cl = class1.lower()
-    #         return 'unid' if cl in ('unk', '') else cl
-     
-    #     df['association'] = df.class1.apply(reclassify)
-        
-    #     # append LP columns from  catalog
-    #     df = pd.concat([df, lp_pars(fgl).loc[df.index]], axis=1)
-    #     if dataset=='dr4':
-    #         # replace with common DR3 if DR4
-    #         dr3 = Fermi4FGL('dr3')
-    #         lp3 = lp_pars(dr3)
-    #         df['hasdr3'] =np.isin(df.index, dr3.index)
-    #         common = df[df.hasdr3].index
-    #         print(f'Apply DR3 LP values for all but {sum(~df.hasdr3)} sources.')
-    #         lpcols='Ep Fp d d_unc'.split()
-    #         df.loc[common,lpcols]=  lp3.loc[common,lpcols]
-
-    #     # append columns with logs needed later
-    #     df['log_var'] = np.log10(df.variability)
-    #     df['log_epeak'] = np.log10(df.Ep)
-    #     df['log_fpeak'] = np.log10(df.Fp)  
-
-    #     return df,len(fgl)\
-
     def load_data(self, fgl):
         """Extract subset of 4FGL information relevant to ML pulsar-like selection
         """
