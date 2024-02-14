@@ -134,7 +134,7 @@ SKlearn specifications:
     
     
     
-    def getPrecRec(self, X, y, ax=plt.axes()):
+    def getPrecRec(self, X, y, ax):
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.333)
 
         classifier = self.classifier.fit(X_train, y_train)

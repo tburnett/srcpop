@@ -393,3 +393,47 @@ class Fermi4FGL(CatDF, pd.DataFrame):
         s = self.data[index]
         cols = self.data.columns
         return pd.Series(dict( (c, s.field(c)) for c in cols.names),  name=name) 
+    
+    def flux_band(self, name):
+
+        s = self.get_series(name)
+        flux = s['Flux_Band']
+        unc = s['Unc_Flux_Band']
+        return pd.Series(dict(
+                flux=flux[1:], 
+                low=unc[1:,0], 
+                high=unc[1:,1],
+                islimit=pd.isna(unc[1:,0]),
+                nufnu=s['nuFnu_Band'][1:],
+                ),  name=name)
+
+    def band_plot(self, name, ax=None, emax=None, specfun=True, **kwargs):
+        
+        fb = self.flux_band(name)
+        e_bins = np.array([ 0.1, 0.3, 1, 3, 10, 30, 100, 1000])
+        energy = np.sqrt(e_bins[:-1]* e_bins[1:])
+        e_err = np.array([energy-e_bins[:-1],e_bins[1:]-energy])
+        
+        lim = fb.islimit
+        bar =~lim
+        err = np.array([-fb.low, fb.high, ])
+        fig,ax=plt.subplots(figsize=(8,5)) if ax is None else (ax.figure, ax)
+        scale = 1e9 * energy # / 624.150648
+        ax.errorbar(x=energy[bar], xerr=e_err[:,bar], y=(scale*fb.flux)[bar], 
+                    yerr=(scale*err)[:,bar], fmt='o');
+        ax.errorbar(x=energy[lim], xerr=e_err[:,lim], y=(y:=(scale* fb.high)[lim]), 
+                    uplims=True*sum(lim), yerr=y/2,  fmt='.',color='grey');
+        if specfun:
+            sf = self.get_specfunc(name, 'LP')
+            sf.sed_plot(ax=ax,plot_kw=dict(color='orange'),
+                    )#label='4FGL-DR3')        
+        # ax.scatter(energy, 1e12*fb.nufnu, marker='o', facecolor='none', edgecolor='w', s=400 )
+        kw = dict(xscale='log', xlim=(0.1, 100), xlabel='Energy (GeV)', 
+            yscale='log', ylim=(0.02), yticks=[0.1,1,10, 100], 
+                yticklabels='0.1 1 10 100'.split()
+                )
+        kw.update(kwargs)
+        ax.set(**kw)
+        # ax.set_title(fb.name, fontsize=10) 
+        # ax.text(0.5,0.92, fb.name, fontsize=12, ha='center', transform=ax.transAxes) # ylabel=r'$\nu F_{\nu}\ \ [\mathrm{10^{-12}\ erg\ cm^{-2}\ s^{-1}}]$',
+        return fig

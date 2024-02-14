@@ -48,9 +48,11 @@ import sys, os, string, pprint, datetime
 
 __all__ = ['nbdoc', 'image', 'figure', 'monospace', 'ShowPrintout','capture', 'capture_hide', 
         'capture_show', 'shell', 'create_file', 'ipynb_doc', 'get_nb_namespace', 'special_prefix', 
-        'figure_number', 'display_markdown', 'FigureWrapper','show', 'show_fig']
+        'figure_number', 'display_markdown', 'FigureWrapper','show', 'show_fig', 'figure_callback']
 
 special_prefix = ''
+
+figure_callback = None # perhaps a function to process figure
 
 # Manage the figure number
 class FigureNumber:
@@ -199,7 +201,7 @@ except:
     pd=None
 
 
-# a dict accumulated here, used to initialze set of wrappers for ObjectReplacer
+# a dict accumulated here, used to initialize set of wrappers for ObjectReplacer
 wrappers = {}
                      
 class Wrapper(object):
@@ -285,8 +287,13 @@ class FigureWrapper(Wrapper):
         import base64
         from IPython.core import pylabtools
         fig=self.fig
-        n =  self.fignum# = figure_number.next()
-        prefix = self.prefix+'_' if self.prefix else ''
+
+        n =  self.fignum
+
+        # special for savefig maybe
+        if figure_callback is not None:
+            figure_callback(self)
+        # prefix = self.prefix+'_' if self.prefix else ''
 
         # the caption, which may be absent.
         caption = getattr(fig,'caption', getattr(self,'caption',None))
@@ -295,10 +302,6 @@ class FigureWrapper(Wrapper):
             figcaption = f' <figcaption>{caption}</figcaption>'
         else: figcaption=''
 
-        # assign, or get, a filename
-        # name =fig.filename if hasattr(fig, 'filename')  else f'{prefix}fig_{n:02d}.png'
-        # fn = os.path.join(self.folder_name, name )
-        # browser_fn =fn
         
         if plt: plt.close(getattr(fig, 'number', None) )
 
@@ -700,7 +703,7 @@ def nbdoc(fun, *pars, name=None, fignum=1, **kwargs):
     display.display( md_data )  
 
 def display_markdown(obj, vars={}):
-    print('Obsolete: use "show"', file=sys.stdout)
+    raise DeprecationWarning('Obsolete: use "show"', )
     show(obj, vars)
 
 def show(obj, vars={}, **kwargs):

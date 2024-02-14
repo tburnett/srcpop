@@ -502,13 +502,13 @@ class SEDplotter:
     """ Manage SED plots showing both UW and 4FGL-DR4 
 
     """
-    def __init__(self, plec=False):
+    def __init__(self, plec=False, fgl='dr4'):
         """ set up the catalogs that have specfunc columns"""
         from pylib.catalogs import UWcat, Fermi4FGL
         self.uw = UWcat('uw1410')
         self.uw.index = self.uw.jname  # make it indexed by the uw jname
         self.uw.index.name = 'UW jname'
-        self.fcat = Fermi4FGL()
+        self.fcat = Fermi4FGL(fgl)
         self.plec =plec
         self.plot_kw=[dict(lw=4,color='blue', alpha=0.5),dict(color='red')]
         
@@ -549,7 +549,7 @@ class SEDplotter:
         ax.set(**kw)
 
 
-def sedplotgrid(df, ncols=10, height=1, fignum=None, **kwargs):
+def sedplotgrid(df, fgl='dr4', ncols=10, height=1, fignum=None, **kwargs):
     """ - height -- height of a row in inches """
     N = len(df)
     assert N>0, 'No data'
@@ -560,7 +560,7 @@ def sedplotgrid(df, ncols=10, height=1, fignum=None, **kwargs):
             t = str(info).split('\n')[:-1]
         return info.name +sep+ sep.join(t)
     with capture_hide():
-        sp = SEDplotter(plec=kwargs.pop('plec', False))
+        sp = SEDplotter(fgl=fgl, plec=kwargs.pop('plec', False))
     fig, axx = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize,
                     sharex=True,sharey=True,
                     gridspec_kw=dict(top =0.99, bottom=0.01, hspace=0.1,
