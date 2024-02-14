@@ -272,6 +272,84 @@ class MLfit(SKlearn):
         df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
         print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
 
+
+
+
+
+    #Takes a tuple of classifiers and a tuple of their names
+    # Axis object needs working on
+    def pltAvgPrecRec(classifiers, names, X, y, Axis=None):
+    
+        import seaborn as sns
+        import sklearn
+        from sklearn.metrics import PrecisionRecallDisplay
+        import matplotlib.pyplot as plt
+    
+        def getPrecRec(theX, they, clf, ax=None):
+            X_train, X_test, y_train, y_test = train_test_split(theX, they, test_size=0.333)
+    
+            classifier = clf.fit(X_train, y_train)
+    
+            #Get precision and recall values
+            tem = PrecisionRecallDisplay.from_estimator(
+                classifier, X_test, y_test, name=name, ax=ax, plot_chance_level=True
+            )
+            tem.figure_.clear()
+    
+            return tem
+    
+        #set up
+        thePrec = np.empty(0)
+        theRecall = np.empty(0)
+        theSet = np.empty(0)
+        
+        
+        #Loop through classifiers
+        for name, clf in zip(names, classifiers):
+        
+            they = (y=='psr')
+    
+            pr = getPrecRec(X, they, clf, Axis)
+    
+            count = 0
+            prec = pr.precision
+            recall = pr.recall
+    
+    
+            while((count:=count+1) <= 20):
+    
+                pr = getPrecRec(X, they, clf, Axis)
+    
+                if prec.size < pr.precision.size:
+                    prec += pr.precision[:prec.size]
+                    recall += pr.recall[:recall.size]
+                else:
+                    p = np.ones(prec.size)
+                    r = np.ones(recall.size)
+    
+                    p = prec/count
+                    r = recall/count
+    
+                    p[:pr.precision.size] = pr.precision
+                    r[:pr.recall.size] = pr.recall
+                    prec += p
+                    recall += r
+    
+    
+    
+            theSet = np.concatenate((theSet, np.full((prec.size), name)))
+            thePrec = np.concatenate((thePrec, prec/count))
+            theRecall = np.concatenate((theRecall, recall/count))
+    
+        prdf = pd.DataFrame(data={"prec": thePrec, 
+                                  "recall": theRecall, 
+                                  "group": theSet})
+    
+        plot = sns.lineplot(data=prdf, x="recall", y="prec", hue='group')
+        
+        return plot
+        
+
 def doc(nc=2, np=2, kde=False, ):
     from pylib.tools import FigNum, show_date
 
