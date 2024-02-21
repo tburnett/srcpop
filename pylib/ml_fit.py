@@ -8,22 +8,25 @@ import pandas as pd
 import seaborn as sns
 
 from pylib.catalogs import Fermi4FGL
-from pylib.tools import FigNum, show_date, update_legend, epeak_kw, fpeak_kw
+from pylib.tools import FigNum, show_date, update_legend, epeak_kw, fpeak_kw, set_theme
 from pylib.scikit_learn import SKlearn
 
+dark_mode = set_theme(sys.argv)
 if 'show' in sys.argv:
     from pylib.ipynb_docgen import show, show_fig, capture_show
 
-sns.set_theme('notebook' if 'talk' not in sys.argv else 'talk', font_scale=1.25) 
-if 'dark' in sys.argv:
-    plt.style.use('dark_background') #s
-    plt.rcParams['grid.color']='0.5'
-    dark_mode=True
-else:
-    dark_mode=False
-fontsize = plt.rcParams["font.size"] # needed to be persistent??
-
 dataset='dr3' if 'dr3' in sys.argv else 'dr4'
+
+def lp_pars(fgl):
+    # extract LP spectral function from 4FGL catalog object get its parameters
+    df = pd.DataFrame(index=fgl.index)
+    df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
+    sed = df['lp_spec']
+    df['Ep'] = 10**sed.apply(lambda f: f.epeak)
+    df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
+    df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
+    df['d_unc'] = 2*fgl.field('unc_LP_beta')
+    return df.drop(columns=['lp_spec'])
 
 #=======================================================================
 class MLfit(SKlearn):
@@ -59,19 +62,25 @@ class MLfit(SKlearn):
         print(f"""Remove {len(fgl)-len(df)} without valid r95 or variability or significance>4
             -> {len(df)} remain""")
 
-        # extract LP spectral function, get its parameters
-        df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
-        sed = df['lp_spec']
-        df['Ep'] = 10**sed.apply(lambda f: f.epeak)
-        df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
-        df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
-
-        # lower-case class1, combine 'unk' and ''  associations to 'unid'
+          # create association with lower-case class1, combine 'unk' and '' to 'unid'
         def reclassify(class1):            
             cl = class1.lower()
             return 'unid' if cl in ('unk', '') else cl
-     
+   
         df['association'] = df.class1.apply(reclassify)
+
+        # append LP columns from  catalog
+        df = pd.concat([df, lp_pars(fgl).loc[df.index]], axis=1)
+        if dataset=='dr4':
+            # replace with common DR3 if DR4
+            dr3 = Fermi4FGL('dr3')
+            lp3 = lp_pars(dr3)
+            df['hasdr3'] =np.isin(df.index, dr3.index)
+            common = df[df.hasdr3].index
+            print(f'Apply DR3 LP values for all but {sum(~df.hasdr3)} sources.')
+            lpcols='Ep Fp d d_unc'.split()
+            df.loc[common,lpcols]=  lp3.loc[common,lpcols]
+
         # append columns with logs needed later
         df['log_var'] = np.log10(df.variability)
         df['log_epeak'] = np.log10(df.Ep)
@@ -271,25 +280,26 @@ class MLfit(SKlearn):
         cols= 'source_type glat glon significance r95 Ep Fp d diffuse p_pulsar'.split()
         df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
         print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
-
-
-
-
-
-    #Takes a tuple of classifiers and a tuple of their names
-    # Axis object needs working on
-    def pltAvgPrecRec(classifiers, names, X, y, Axis=None):
+        
+        
+        
+        
+        
+    #try making axis default to 1 to avoid output
+    def pltAvgPrecRec(self, classifiers, names, Axis=None):
     
         import seaborn as sns
         import sklearn
         from sklearn.metrics import PrecisionRecallDisplay
+        from sklearn.model_selection import train_test_split 
         import matplotlib.pyplot as plt
-    
-        def getPrecRec(theX, they, clf, ax=None):
-            X_train, X_test, y_train, y_test = train_test_split(theX, they, test_size=0.333)
-    
-            classifier = clf.fit(X_train, y_train)
-    
+        
+        X,y = self.getXy()
+        
+        def getPrecRec(theX, they, theclf, ax=None):
+            ty = (they=='pulsar')
+            X_train, X_test, y_train, y_test = train_test_split(theX, ty, test_size=0.333)
+            classifier = theclf.fit(X_train, y_train)
             #Get precision and recall values
             tem = PrecisionRecallDisplay.from_estimator(
                 classifier, X_test, y_test, name=name, ax=ax, plot_chance_level=True
@@ -307,9 +317,9 @@ class MLfit(SKlearn):
         #Loop through classifiers
         for name, clf in zip(names, classifiers):
         
-            they = (y=='psr')
+            
     
-            pr = getPrecRec(X, they, clf, Axis)
+            pr = getPrecRec(X, y, clf, Axis)
     
             count = 0
             prec = pr.precision
@@ -317,8 +327,7 @@ class MLfit(SKlearn):
     
     
             while((count:=count+1) <= 20):
-    
-                pr = getPrecRec(X, they, clf, Axis)
+                pr = getPrecRec(X, y, clf, Axis)
     
                 if prec.size < pr.precision.size:
                     prec += pr.precision[:prec.size]
@@ -347,8 +356,7 @@ class MLfit(SKlearn):
     
         plot = sns.lineplot(data=prdf, x="recall", y="prec", hue='group')
         
-        return plot
-        
+        return plot        
 
 def doc(nc=2, np=2, kde=False, ):
     from pylib.tools import FigNum, show_date
@@ -383,6 +391,7 @@ def doc(nc=2, np=2, kde=False, ):
     with capture_show('Setup:') as imp:
         self = MLfit(skprop)
     show(imp)
+    
     if kde: 
         return self
     show(str(self))
@@ -409,14 +418,33 @@ def doc(nc=2, np=2, kde=False, ):
     show(table)
     show_fig(self.plot_prediction_association,table, fignum=fn.next)
     show(f"""#### Write summary file""")
+    
+    
+    #import 'default' classifiers
+    from sklearn.svm import SVC
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.neural_network import MLPClassifier
+    theNames=('Neural Net',
+              'RBF SVM',
+              'Random Forest')
+
+    theClassifiers=(MLPClassifier(alpha=1, max_iter=1000),
+                 SVC(gamma=2, C=1,probability=True), 
+                 RandomForestClassifier(n_estimators=100, max_features=2))
+    
+    ax = plt.axes()
+    
+    prp = self.pltAvgPrecRec(theClassifiers, theNames, Axis=ax)
+    show(prp)
+    
     self.write_summary()
     return self
 
 if 'doc' in sys.argv:
     self = doc()
 
-def kde_setup(kde_vars = 'd log_epeak log_fpeak diffuse'.split()):
-    self = doc(nc=2, np=1, kde=True)
+def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2):
+    self = doc(nc=nc, np=1, kde=True)
     def make_group(self):
 
         def groupit(s):
@@ -436,10 +464,8 @@ def kde_setup(kde_vars = 'd log_epeak log_fpeak diffuse'.split()):
     t =pd.DataFrame([all,sel,pct])['blazar psr msp unid bcu'.split()]; 
     t.index.name='counts'
     show(t)
-
-    
     # apply diffuse
-    df3 = pd.read_csv(f'files/{dataset}_2_class_classification.csv', index_col=0)
+    df3 = pd.read_csv(f'files/{dataset}_{nc}_class_classification.csv', index_col=0)
     dfc['diffuse'] = df3.diffuse
     def apply_kde(self, df=None, features=None):
         from pylib.kde import Gaussian_kde
@@ -451,8 +477,10 @@ def kde_setup(kde_vars = 'd log_epeak log_fpeak diffuse'.split()):
             df[name+'_kde'] = u
         return df
     
-    show(f"""## Create KDE functions 
-    Using variables {kde_vars} for KDE analysis""")
+    show(f"""## Create KDE functions  in lieu of ML training
+    * Features: {kde_vars} 
+    * Targets: {self.targets.keys()}
+    """)
     apply_kde(self, dfc, kde_vars)
     return self, dfc
 
@@ -466,67 +494,62 @@ def apply_kde(self, df=None, features=None):
         df[name+'_kde'] = u
     return df
 
+def hist_kde(self,df, ):
+    """Histograms of the blazar KDE values...
+    """
+    data = df.copy()
+    def hist_blazar_kde( ax):
+        data['blazar class']= data.association
+        sns.histplot(data, ax=ax, x='blazar_kde', hue='blazar class',
+                     hue_order='bll fsrq bcu'.split(), palette=self.palette,
+                     element='step')
+        ax.set(xticks=np.arange(0,1.51, 0.5), xlabel='blazar KDE')
+     
+    def hist_pulsar_kde( ax):
+        data['pulsar class']= data.association
+        sns.histplot(data, ax=ax, x='blazar_kde', hue='pulsar class',
+                     hue_order='psr msp'.split(), palette=self.palette,
+                     element='step')
+        ax.set(xticks=np.arange(0,1.51, 0.5), xlabel='blazar KDE')
+    fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12,4)) 
+    hist_blazar_kde( ax=ax1)
+    hist_pulsar_kde( ax=ax2)
+    return fig
+
 if 'kde' in sys.argv:
     import warnings
     warnings.filterwarnings("ignore")
-
-    self = doc(nc=2, np=1, kde=True)
-    def intro():
-        show("""\
-            ## Introduction
-            The classification schemes that we have been using are misleading for the Unid's. 
-            The following features are problematic for classifying the Unids.
-            * Flux, or $Fp$: the Unids are mostly low flux, a threshold effect for known sources but apparently 
-            a feature of the possible new component.
-            * Curvature: Unid curvatures are much higher, either science, or as Jean believes, a systematic 
-            for curved weak sources (which option can be resolved with a gtobssim study.)
-            * Softness, or $Ep$: the Unids have a large soft component, not reflected in the target populations
-            The fact there is an Unid component not in the targets violates the basic ML assumption, 
-            as is evident in the pulsar probability plots that I posted above. Using the pulsar prediction, 
-            assuming that it was also selecting this new population, underestimates this component.
-            Thus we use a simpler approach: calculate KDE probabilities for the three targets using 
-            only the two spectral shape parameters curvature and Ep  (after removing those with significant 
-            variability) . I've been applying this to the "pulsar" selection to isolate 
-            the `msp` and `psr` subsets.
-            This only presumes that the shape is independent of the flux.
-            """)
-    intro()
-    def make_group(self):
-        df = self.df
-        def groupit(s):
-            if s.association=='unid': return 'unid'
-            if ~ pd.isna(s.target): return s.target
-            return np.nan
-        df = self.df
-        df['subset'] = df.apply(groupit, axis=1)
-    make_group(self)
-    cut = '0.15<Ep<4 & d>0.2 & variability<25'
-    show(f'### Data selection cut: "{cut}"')
-    dfc = self.df.query(cut)
-    all = pd.Series(self.df.groupby('subset').size(), name='all')
-    sel = pd.Series(dfc.groupby('subset').size(), name='selected')
-    show(pd.DataFrame([all,sel]))
-    # apply diffuse
-    df3 = pd.read_csv(f'files/dr3_2_class_classification.csv', index_col=0)
-    dfc['diffuse'] = df3.diffuse
+    self, dfc = kde_setup()
     
+  
+    show(f"""### Blazar KDE for blazar and pulsar types
+    The KDE for blazars is determined from the `bll` and `fsrq` classes. Here we 
+    examine distributions
+    of it for the blazar types, including also `bcu`, and the pulsar types.
+    """)    
+    show_fig(hist_kde, self, dfc, )
+    show(f"""Note that the `bcu` has a component that does not correspond to that
+    expected for the known blazar types. The pulsars show show small 
+    values of the blazar KDE, but there is a little mixing for `msp`. 
+    """)
+
     show(f"""### Spectral shape plots""")    
     show_fig(self.plot_spectral, dfc)
 
     show(f"""### Flux plots""")    
     show_fig(self.plot_flux_shape, dfc)
 
-def plot_kde_density(self,df, **kwargs):
+def plot_kde_density(self,df, s=10, **kwargs):
 
     fig, axx = plt.subplots(ncols=2, nrows=2,  figsize=(15,12),  
                                     gridspec_kw=dict(wspace=0.3,hspace=0.05))
-    other_kw   =  dict(hue_order=['unid'],          palette=['0.5'],)
+    other_kw   =  dict(hue_order=['unid'],    palette=['0.5'],)
     other_kw.update(kwargs)
     kde_kw   = dict(hue_order=self.target_names, palette=self.palette,  alpha=0.4,legend=False)
     target_kw= dict(hue_order=self.target_names, palette=self.palette,)
 
-    spectral_kw = dict(data=df, x='log_epeak', y='d', s=10, hue='subset', edgecolor='none' )
-    flux_kw = dict(data=df, y='log_fpeak', x='diffuse', s=10, hue='subset', edgecolor='none' )
+    spectral_kw = dict(data=df, x='log_epeak', y='d', s=s, hue='subset', edgecolor='none' )
+    flux_kw = dict(data=df, y='log_fpeak', x='diffuse', s=s, hue='subset', edgecolor='none' )
     
     def spectral( ax1, ax2 ):
         """Spectral shape scatter plots: curvature $d$ vs $E_p$.
