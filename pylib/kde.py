@@ -29,7 +29,11 @@ class Gaussian_kde(stats.gaussian_kde):
         """ For convenience"""
         return self.evaluate(df.loc[:,self.columns].T) 
     
-
+    @property
+    def extent(self):
+        """For imshow"""
+        return self.limits.values.T.ravel() 
+    
         
     @classmethod
     def example(cls, n=2000):
@@ -42,5 +46,48 @@ class Gaussian_kde(stats.gaussian_kde):
 
 Gaussian_kde.__doc__ = f"""\
 Adapt stats.gaussian_kde to use a DataFrame as input
-{stats.gaussian_kde.__dict__}
+
+The example 
+```
+self = Gaussian_kde.example()
+import matplotlib.pyplot as plt
+X,Y = np.mgrid[-4:4:100j, -4:4:100j]
+positions = pd.DataFrame.from_dict(dict(x=X.ravel(),y=Y.ravel()))
+Z = np.reshape(self(positions).T, X.shape)
+fig, ax = plt.subplots(figsize=(5,5))
+ax.imshow(np.rot90(Z), cmap=plt.cm.gist_earth_r, extent=self.extent, )
+plt.show()
+```
+
 """
+
+class ComponentProb(Gaussian_kde): 
+    """
+    Implement KDE with bounds
+    """
+
+    def __init__(self, data:pd.DataFrame, 
+                 features:[], 
+                 bounds={},  
+                ):
+        super().__init__(data, features)
+        self.bounds=bounds
+        self.features=features
+    
+    def __call__(self, data:pd.DataFrame):
+
+        t = data.loc[:,self.columns].to_numpy().T
+        ret = self.evaluate(t)
+        # add reflections
+        for key, (lo, hi) in self.bounds.items():
+            idx = self.features.index(key)
+            if lo is not None:   # print(self.features[idx], '>', lo )
+                t2 = t.copy()
+                t2[idx, :] = t[idx,:] - 2*lo
+                ret += self.evaluate(t2)
+
+            if hi is not None:   # print(self.features[idx], '<', hi)
+                t2 = t.copy()
+                t2[idx, :] = 2*hi-t[idx,:]
+                ret += self.evaluate(t2)
+        return ret

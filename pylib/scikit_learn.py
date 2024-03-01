@@ -27,8 +27,8 @@ class SKlearn():
     def __repr__(self):
         return f"""\
 SKlearn specifications: 
-* features: {self.features}
-* targets: {self.targets}
+* features: {', '.join(self.features)}
+* classes: {', '.join(self.targets.keys())}
 * model: {self.model}"""
     
     def _set_model(self, skprop):

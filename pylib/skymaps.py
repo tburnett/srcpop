@@ -104,7 +104,7 @@ class SkyPlotMixin():
 
 class AITfigure(SkyPlotMixin):
 
-    def __init__(self, fig=None, figsize=(10,5), grid_color='grey', **kwargs):
+    def __init__(self, fig=None, *, figsize=(10,5), grid_color='grey', **kwargs):
         """
         fig -- [None] 
         figsize

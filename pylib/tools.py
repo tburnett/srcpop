@@ -21,10 +21,17 @@ def set_theme(argv):
     return dark_mode
 
 def fpeak_kw(axis='x'):
-    return {axis+'label':r'$F_p \ \ \mathrm{(eV\ s^{-1}\ cm^{-2})}$', 
-            axis+'ticks': np.arange(-2,5,2),
-            axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(), 
+    return {axis+'label':r'Peak flux $F_p\ \ \mathrm{ (eV\ cm^{-2}\ s^{-1})}$', 
+            axis+'ticks': np.arange(-2,4.9,2),
+            axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(),
+            axis+'lim': (-2,5 ),
             }
+def diffuse_kw(axis='x'):
+    return {axis+'label':r'Diffuse energy flux $D\ \ \mathrm{ (eV\ cm^{-2}\ s^{-1})}$',
+            axis+'lim': (-1,2.2),
+            axis+'ticks': np.arange(-1,2.1,1),
+            axis+'ticklabels': '0.1 1 10 100'.split(),
+           }
 def epeak_kw(axis='x'):
     return {axis+'label':'$E_p$  (GeV)',
             axis+'ticks': np.arange(-1,1.1,1),

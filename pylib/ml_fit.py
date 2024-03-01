@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from collections import OrderedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 
 from pylib.catalogs import Fermi4FGL
-from pylib.tools import epeak_kw, fpeak_kw, set_theme
+from pylib.tools import epeak_kw, fpeak_kw, set_theme, diffuse_kw
 from pylib.scikit_learn import SKlearn
 
 dark_mode = set_theme(sys.argv)
@@ -31,6 +30,7 @@ def lp_pars(fgl):
     df['d_unc'] = 2*fgl.field('unc_LP_beta')
     return df.drop(columns=['lp_spec'])
 
+
 #=======================================================================
 class MLfit(SKlearn):
 
@@ -47,7 +47,7 @@ class MLfit(SKlearn):
         if dark_mode:
             self.hue_kw.update(palette='yellow magenta cyan'.split(), edgecolor=None)
         else:
-            self.hue_kw.update(palette='green red blue'.split())   
+            self.hue_kw.update(palette='violet blue red'.split())   
     
     def __repr__(self):
         return f"""MLfit applied to 4FGL-{dataset.upper()} \n\n{super().__repr__()}
@@ -60,12 +60,18 @@ class MLfit(SKlearn):
         cols = 'glat glon significance r95 variability class1'.split()
         fgl = Fermi4FGL(fgl)
         
-        # remove sources without variability or r95
-        df = fgl.loc[:,cols][(fgl.variability>0) & (fgl.r95>0) &(fgl.significance>4)].copy()
+        # remove sources without variability or r95 but keep SNR
+        df = fgl.loc[:,cols][  (fgl.variability>0) 
+                             & ( (fgl.r95>0) | (fgl.class1=='SNR')) 
+                             & (fgl.significance>4)
+                             ].copy()
         print(f"""Remove {len(fgl)-len(df)} without valid r95 or variability or significance>4
             -> {len(df)} remain""")
 
-          # create association with lower-case class1, combine 'unk' and '' to 'unid'
+        # zero the SNR r95 values
+        df['r95'] = df.r95.apply(lambda x: 0 if pd.isna(x) else x)
+ 
+        # create association with lower-case class1, combine 'unk' and '' to 'unid'
         def reclassify(class1):            
             cl = class1.lower()
             return 'unid' if cl in ('unk', '') else cl
@@ -91,15 +97,15 @@ class MLfit(SKlearn):
 
         return df,len(fgl)
         
-    def prediction_association_table(self):
+    def prediction_association_table(self, df=None):
         """The number of sources classified as each of the  targets, according to the 
         association type.
         """
-        df = self.df.copy()
+        if df is None: df = self.df.copy()
         
         # combine a bunch of the class1 guys into "other"
         def make_other(s):
-            if s in 'bll fsrq psr msp bcu spp glc unid'.split():
+            if s in 'bll fsrq psr msp bcu spp snr glc unid'.split():
                 return s
             return 'other'
             
@@ -107,7 +113,7 @@ class MLfit(SKlearn):
         def simple_pivot(df, x='prediction', y= 'association'):        
             ret =df.groupby([x,y]).size().reset_index().pivot(
                 columns=x, index=y, values=0)
-            return ret.reindex(index='bll fsrq psr msp glc bcu spp other unid'.split())
+            return ret.reindex(index='bll fsrq psr msp glc bcu spp snr other unid'.split())
             
         t=simple_pivot(df)
         t[np.isnan(t)]=0
@@ -142,17 +148,17 @@ class MLfit(SKlearn):
         return pd.DataFrame(mdl.predict_proba(X), index=dfq.index,
                             columns=['p_'+ n for n in self.target_names])
     
-    def plot_prediction_association(self, table):
+    def plot_prediction_association(self, table, ax=None):
         """Bar chart showing the prediction counts for each association type, according 
-        to the predicted target class. 
+        to the predicted training class. 
         """
     
-        fig, ax = plt.subplots(figsize=(10,5))
+        fig, ax = plt.subplots(figsize=(10,5)) if ax is None else (ax.figure, ax)
         ax = table.plot.barh(stacked=True, ax=ax, color=self.palette)
         ax.invert_yaxis()
         ax.set(xlabel='Prediction counts', ylabel='Association type')
-        ax.legend(bbox_to_anchor=(0.78,0.75), loc='lower left', frameon=True,
-                title='Target class')
+        ax.legend( loc='upper right', #bbox_to_anchor=(0.78,0.75), loc='lower left',
+                   frameon=True,   title='Training class')
         return fig
     
     def pairplot(self, query='', **kwargs):  
@@ -186,7 +192,7 @@ class MLfit(SKlearn):
     def pulsar_prob_hists(self):
         """Histograms of the classifier pulsar probability. 
         Upper three plots: each of the labeled target clases; lower plots: stacked histograms
-        for the classifier assigments, colors corresponding to the plots above.
+        for the classifier assignments, colors corresponding to the plots above.
         """
         probs= self.predict_prob(query=None)
         df = pd.concat([self.df, probs], axis=1)
@@ -284,6 +290,81 @@ class MLfit(SKlearn):
         df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
         print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
 
+        
+        
+    #try making axis default to 1 to avoid output
+    def pltAvgPrecRec(self, classifiers, names, Axis=None):
+    
+        import seaborn as sns
+        import sklearn
+        from sklearn.metrics import PrecisionRecallDisplay
+        from sklearn.model_selection import train_test_split 
+        import matplotlib.pyplot as plt
+        
+        X,y = self.getXy()
+
+        def getPrecRec(theX, they, theclf, ax=None):
+            ty = (they=='pulsar')
+            X_train, X_test, y_train, y_test = train_test_split(theX, ty, test_size=0.333)
+            classifier = theclf.fit(X_train, y_train)
+            #Get precision and recall values
+            tem = PrecisionRecallDisplay.from_estimator(
+                classifier, X_test, y_test, name=name, ax=ax, plot_chance_level=True
+            )
+            tem.figure_.clear()
+    
+            return tem
+    
+        #set up
+        thePrec = np.empty(0)
+        theRecall = np.empty(0)
+        theSet = np.empty(0)
+        
+        
+        #Loop through classifiers
+        for name, clf in zip(names, classifiers):
+        
+            
+    
+            pr = getPrecRec(X, y, clf, Axis)
+    
+            count = 0
+            prec = pr.precision
+            recall = pr.recall
+    
+    
+            while((count:=count+1) <= 20):
+                pr = getPrecRec(X, y, clf, Axis)
+    
+                if prec.size < pr.precision.size:
+                    prec += pr.precision[:prec.size]
+                    recall += pr.recall[:recall.size]
+                else:
+                    p = np.ones(prec.size)
+                    r = np.ones(recall.size)
+    
+                    p = prec/count
+                    r = recall/count
+    
+                    p[:pr.precision.size] = pr.precision
+                    r[:pr.recall.size] = pr.recall
+                    prec += p
+                    recall += r
+    
+    
+    
+            theSet = np.concatenate((theSet, np.full((prec.size), name)))
+            thePrec = np.concatenate((thePrec, prec/count))
+            theRecall = np.concatenate((theRecall, recall/count))
+    
+        prdf = pd.DataFrame(data={"prec": thePrec, 
+                                  "recall": theRecall, 
+                                  "group": theSet})
+    
+        plot = sns.lineplot(data=prdf, x="recall", y="prec", hue='group')
+        
+        return plot    
+    
 title = sys.argv[-1] if 'title' in sys.argv else None
 
 def doc(nc=2, np=2, kde=False, bcu=False ):
@@ -300,6 +381,7 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     
     skprop = dict(
         features= ('log_var', 'log_fpeak', 'log_epeak', 'd'),
+        clips = [(None,None), (None,None),(-1,3), (-0.1,2) ],
         targets = targets(nc,np),
         model_name = 'SVC',
         truth_field='association',
@@ -310,7 +392,7 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     if kde:
         show(f"""# KDE approach  ({dataset.upper()})""" if title is None else '# '+title)
         show_date()
-        show("""Not applying ML, so no fit to targets to generate prediction model. Instead we compute KDE probability density distributions
+        show("""Not applying ML, so no class fits to generate prediction model. Instead we compute KDE probability density distributions
         for the ML targets, which we then apply to the unid and bcu associations.
         """)
     else:
@@ -321,6 +403,7 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     show(imp)
     if kde: 
         return self
+    
     show(str(self))
     show(f"""## Feature distributions """)
     show_fig(self.pairplot, fignum=fn.next)
@@ -344,20 +427,22 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     table = self.prediction_association_table()
     show(table)
     show_fig(self.plot_prediction_association,table, fignum=fn.next)
-    show(f"""#### Write summary file""")
+    show(f"""#### Write summary file, adding diffuse correlation""")
     self.write_summary()
     return self
 
 if 'doc' in sys.argv:
     self = doc()
 
+    
+
 def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2, bcu=False):
     self = doc(nc=nc, np=1, kde=True, bcu=bcu)
     def make_group(self):
 
         def groupit(s):
-            if s.association=='unid': return 'unid'
-            if s.association=='bcu': return 'bcu'
+            if s.association in 'unid bcu spp'.split(): return s.association
+            # if s.association=='bcu': return 'bcu'
             if ~ pd.isna(s.target): return s.target
             return np.nan
         df = self.df
@@ -374,22 +459,15 @@ def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2, bcu=False):
     t =pd.DataFrame([all,sel,pct])[classes]; 
     # t.index.name='counts'
     show(t)
+    
     # apply diffuse
     df3 = pd.read_csv(f'files/{dataset}_{nc}_class_classification.csv', index_col=0)
     dfc['diffuse'] = df3.diffuse
-    def apply_kde(self, df=None, features=None):
-        from pylib.kde import Gaussian_kde
-        if df is None: df = self.df.copy() 
-        if features is None: features=self.features
-        for name, sdf in df.groupby('subset'):
-            gde = Gaussian_kde(sdf,  features)
-            u = gde(df)
-            df[name+'_kde'] = u
-        return df
+
     
-    show(f"""## Create KDE functions  in lieu of ML training
-    * Features: {kde_vars} 
-    * Targets: {self.targets.keys()}
+    show(f"""## Create KDE functions instead of ML training
+    * Classes: {', '.join(self.targets.keys())}
+    * Features: {', '.join(kde_vars)} 
     """)
     apply_kde(self, dfc, kde_vars)
     return self, dfc
@@ -399,7 +477,10 @@ def apply_kde(self, df=None, features=None):
     if df is None: df = self.df.copy() 
     if features is None: features=self.features
     for name, sdf in df.groupby('subset'):
-        gde = Gaussian_kde(sdf,  features)
+        try:
+            gde = Gaussian_kde(sdf,  features)
+        except Exception as msg:
+            print(msg, file=sys.stderr)
         u = gde(df)
         df[name+'_kde'] = u
     return df
