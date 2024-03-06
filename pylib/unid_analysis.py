@@ -233,7 +233,7 @@ class UnidAnalysis( Diffuse, MLspec):
         sns.scatterplot(data, ax=ax, x='diffuse',y='log_fpeak', 
                         **self.hue_kw, **self.size_kw );
         plt.legend(loc='upper right', fontsize=12,bbox_to_anchor=(1.1,1.1));
-        ax.set(**self.fluxticks('x'), **fpeak_kw('y'), ylim=(-2,4));
+        ax.set(**self.fluxticks('x'), **fpeak_kw('y'),);
         return fig
     
     def flux_ratio_vs_diffuse(self):

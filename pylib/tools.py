@@ -27,7 +27,7 @@ def fpeak_kw(axis='x'):
             axis+'lim': (-2,5 ),
             }
 def diffuse_kw(axis='x'):
-    return {axis+'label':r'Diffuse energy flux $D\ \ \mathrm{ (eV\ cm^{-2}\ s^{-1})}$',
+    return {axis+'label':r'Diffuse energy flux $\mathrm{ (eV\ cm^{-2}\ s^{-1})}$',
             axis+'lim': (-1,2.2),
             axis+'ticks': np.arange(-1,2.1,1),
             axis+'ticklabels': '0.1 1 10 100'.split(),

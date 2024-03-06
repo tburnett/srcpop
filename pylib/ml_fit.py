@@ -40,7 +40,7 @@ class MLfit(SKlearn):
         self.df, self.cat_len = self.load_data(fgl)
         super().__init__(self.df, skprop)
         self.palette =['cyan', 'magenta', 'yellow'] if dark_mode else 'green red blue'.split()
-        self.cache_file = f'files/{dataset}_{len(self.target_names)}_class_classification.csv'
+        self.cache_file = f'files/{dataset}_{len(self.trainer_names)}_class_classification.csv'
         
         self.hue_kw={}
         self.size_kw={}
@@ -90,6 +90,9 @@ class MLfit(SKlearn):
             lpcols='Ep Fp d d_unc'.split()
             df.loc[common,lpcols]=  lp3.loc[common,lpcols]
 
+        # add sqrt_d
+        df['sqrt_d'] = np.sqrt(df.d.clip(0,2))
+
         # append columns with logs needed later
         df['log_var'] = np.log10(df.variability)
         df['log_epeak'] = np.log10(df.Ep)
@@ -98,7 +101,7 @@ class MLfit(SKlearn):
         return df,len(fgl)
         
     def prediction_association_table(self, df=None):
-        """The number of sources classified as each of the  targets, according to the 
+        """The number of sources classified as each of the  trainers, according to the 
         association type.
         """
         if df is None: df = self.df.copy()
@@ -124,12 +127,12 @@ class MLfit(SKlearn):
         from sklearn import metrics
         # get true and predicted for the training data
         df = self.df
-        tp = df.loc[~pd.isna(df[self.target_field]), 'target prediction'.split()].to_numpy().T
+        tp = df.loc[~pd.isna(df[self.trainer_field]), 'trainer prediction'.split()].to_numpy().T
         
  
-        labels=self.target_names
+        labels=self.trainer_names
         cm = metrics.confusion_matrix(tp[0], tp[1],)
-        n = self.target_counts['pulsar']
+        n = self.trainer_counts['pulsar']
         purity = 1- cm[0,1]/n
         efficiency = cm[1,1]/n
         
@@ -146,33 +149,37 @@ class MLfit(SKlearn):
         dfq = self.df.query(query) if query is not None else self.df
         X = dfq.loc[:, self.features]
         return pd.DataFrame(mdl.predict_proba(X), index=dfq.index,
-                            columns=['p_'+ n for n in self.target_names])
+                            columns=['p_'+ n for n in self.trainer_names])
     
     def plot_prediction_association(self, table, ax=None):
         """Bar chart showing the prediction counts for each association type, according 
-        to the predicted training class. 
+        to the predicted training class.  The association types above the horizontal dashed line
+        were combined to form training classes, those below are targets. 
         """
-    
+
         fig, ax = plt.subplots(figsize=(10,5)) if ax is None else (ax.figure, ax)
         ax = table.plot.barh(stacked=True, ax=ax, color=self.palette)
         ax.invert_yaxis()
         ax.set(xlabel='Prediction counts', ylabel='Association type')
         ax.legend( loc='upper right', #bbox_to_anchor=(0.78,0.75), loc='lower left',
-                   frameon=True,   title='Training class')
+                frameon=True,   title='Training class')
+        ax.axhline(3.5, ls='--', color='0.9')
+        ax.text(1200, 2.5, 'Used for training',ha='center')
+        ax.text(1200, 6.5, 'Targets', ha='center')
         return fig
     
     def pairplot(self, query='', **kwargs):  
-        """Corner plots, showing KDE distributions of each of the target populations for each of
+        """Corner plots, showing KDE distributions of each of the trainer populations for each of
         the feature parameters.
         """      
         if query=='':
-            # default: only targets
-            df = self.df.loc[~ pd.isna(self.df[self.target_field])]
+            # default: only trainers
+            df = self.df.loc[~ pd.isna(self.df[self.trainer_field])]
         else:
             df = self.df.query(query)
-        kw = dict(kind='kde', hue=self.target_field, hue_order=self.target_names, height=2, corner=True)
+        kw = dict(kind='kde', hue=self.trainer_field, hue_order=self.trainer_names, height=2, corner=True)
         kw.update(**kwargs)
-        g = sns.pairplot(df, vars=self.features,  palette=self.palette[:len(self.target_names)], **kw,)
+        g = sns.pairplot(df, vars=self.features,  palette=self.palette[:len(self.trainer_names)], **kw,)
         return g.figure
     
     def ep_vs_d(self, df=None):
@@ -180,10 +187,10 @@ class MLfit(SKlearn):
         if df is None: df=self.df
         fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(12, 5),sharex=True,sharey=True,
                                     gridspec_kw=dict(wspace=0.05))
-        kw = dict( x='log_epeak', y='d',  palette=self.palette[:len(self.targets)],
-                  hue_order=self.target_names)
+        kw = dict( x='log_epeak', y='d',  palette=self.palette[:len(self.trainers)],
+                  hue_order=self.trainer_names)
         
-        sns.kdeplot(df,ax=ax1, hue=self.target_field, **kw)
+        sns.kdeplot(df,ax=ax1, hue=self.trainer_field, **kw)
         sns.kdeplot(df.query('association=="unid"'),ax=ax2, hue='prediction',**kw)
 
         ax1.set(**epeak_kw(),ylabel='curvature $d$', xlim=(-1.5,1.5)); ax2.set(**epeak_kw())
@@ -191,26 +198,26 @@ class MLfit(SKlearn):
 
     def pulsar_prob_hists(self):
         """Histograms of the classifier pulsar probability. 
-        Upper three plots: each of the labeled target clases; lower plots: stacked histograms
+        Upper three plots: each of the labeled training clases; lower plots: stacked histograms
         for the classifier assignments, colors corresponding to the plots above.
         """
         probs= self.predict_prob(query=None)
         df = pd.concat([self.df, probs], axis=1)
         titles = ['psr+msp','bll','fsrq','unid']
-        non_targets = ['unid', 'bcu']
-        titles = list(self.target_names) + non_targets
+        non_trainers = ['unid', 'bcu']
+        titles = list(self.trainer_names) + non_trainers
         fig, axx = plt.subplots(nrows=len(titles), figsize=(8,10),sharex=True,
                                     gridspec_kw=dict(hspace=0.05))
         kw = dict( x='p_pulsar',  bins=np.arange(0,1.01, 0.025), log_scale=(False,True),
                     element='step', multiple='stack', legend=False)
 
-        for ax, hue_order, color in zip(axx, self.target_names, self.palette):        
-            sns.histplot(df, ax=ax,  hue='target',hue_order=[hue_order],
+        for ax, hue_order, color in zip(axx, self.trainer_names, self.palette):        
+            sns.histplot(df, ax=ax,  hue='trainer',hue_order=[hue_order],
                         palette=[color],**kw)            
 
-        for i,nt in enumerate(non_targets):
+        for i,nt in enumerate(non_trainers):
             sns.histplot(df.query(f'association=="{nt}"'), ax=axx[i+3], hue='prediction', 
-                    hue_order=self.target_names,  palette=self.palette,**kw);
+                    hue_order=self.trainer_names,  palette=self.palette,**kw);
         
         axx[-1].set(xlabel='Pulsar probability')
         for ax, title in zip(axx, titles):
@@ -224,13 +231,13 @@ class MLfit(SKlearn):
         fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(15,6), sharex=True, sharey=True,
                                     gridspec_kw=dict(wspace=0.08))
         kw =dict(x='log_epeak', y='d', s=10, hue='subset', edgecolor='none' )
-        sns.scatterplot(df, ax=ax1, hue_order=self.target_names,  **kw,
+        sns.scatterplot(df, ax=ax1, hue_order=self.trainer_names,  **kw,
                         palette=self.palette, );
         ax1.set(**epeak_kw(), yticks=np.arange(0.5,2.1,0.5), ylabel='Curvature ${d}$',
             xlim=(-1,1),ylim=(0.1,2.2));
         sns.scatterplot(df, ax=ax2, **kw, hue_order=['unid'], palette=['0.5'], )
         
-        sns.kdeplot(df, ax=ax2, **kw, hue_order=self.target_names, palette=self.palette, alpha=0.4,legend=False );
+        sns.kdeplot(df, ax=ax2, **kw, hue_order=self.trainer_names, palette=self.palette, alpha=0.4,legend=False );
         ax2.set(**epeak_kw(),)# yticks=np.arange(0.5,2.1,0.5));
         return fig
 
@@ -240,18 +247,18 @@ class MLfit(SKlearn):
         fig, (ax1,ax2) = plt.subplots(ncols=2, figsize=(15,6), sharex=True, sharey=True,
                                     gridspec_kw=dict(wspace=0.08))
         kw =dict(y='log_fpeak', x='diffuse', s=10, hue='subset', edgecolor='none' )
-        sns.scatterplot(df, ax=ax1, hue_order=self.target_names,  **kw,
+        sns.scatterplot(df, ax=ax1, hue_order=self.trainer_names,  **kw,
                         palette=self.palette, );
         sns.scatterplot(df, ax=ax2, **kw, hue_order=['unid'], palette=['0.5'], )
         
-        sns.kdeplot(df, ax=ax2, **kw, hue_order=self.target_names, palette=self.palette, alpha=0.4,legend=False );
+        sns.kdeplot(df, ax=ax2, **kw, hue_order=self.trainer_names, palette=self.palette, alpha=0.4,legend=False );
         ax1.set(ylim=(-2.75,4), **fpeak_kw('y'), xlim=(-1,2.5))
         return fig
     
     
     def write_summary(self, overwrite=False):
 
-        summary_file=f'files/{dataset}_{len(self.target_names)}_class_classification.csv'  
+        summary_file=f'files/{dataset}_{len(self.trainer_names)}_class_classification.csv'  
 
         if Path(summary_file).is_file() and not overwrite:
             print(f'File `{summary_file}` exists--not overwriting.')
@@ -262,7 +269,7 @@ class MLfit(SKlearn):
             if s.prediction=='pulsar': return s.association+'-pulsar'
             return np.nan
         def set_source_type(s):
-            return s.association if s.association in self.targets['pulsar'] else \
+            return s.association if s.association in self.trainers['pulsar'] else \
                 s.association+'-'+s.prediction
 
         def get_diffuse(df):
@@ -292,85 +299,79 @@ class MLfit(SKlearn):
 
         
         
-    #try making axis default to 1 to avoid output
-    def pltAvgPrecRec(self, classifiers, names, Axis=None):
-    
-        import seaborn as sns
-        import sklearn
-        from sklearn.metrics import PrecisionRecallDisplay
-        from sklearn.model_selection import train_test_split 
-        import matplotlib.pyplot as plt
-        
-        X,y = self.getXy()
+    def precision_recall(self, names=None, ax=None, test_size=0.33, ncount=10):
+        """Plot of the precision, or purity, vs the recall, or efficiency,
+          for the binary pulsar selection. 
+        """
+        from pylib.scikit_learn import get_model 
 
+        fig, ax = plt.subplots(figsize=(5,5) ) if ax is None else (ax.figure, ax)
+        if names is None:
+            names = {self.model_name : str(self.model)}
+            
+        X,y = self.getXy()
+        
         def getPrecRec(theX, they, theclf, ax=None):
+            from sklearn.metrics import PrecisionRecallDisplay
+            from sklearn.model_selection import train_test_split 
             ty = (they=='pulsar')
-            X_train, X_test, y_train, y_test = train_test_split(theX, ty, test_size=0.333)
+            X_train, X_test, y_train, y_test = train_test_split(theX, ty, test_size=test_size)
             classifier = theclf.fit(X_train, y_train)
             #Get precision and recall values
             tem = PrecisionRecallDisplay.from_estimator(
-                classifier, X_test, y_test, name=name, ax=ax, plot_chance_level=True
+                classifier, X_test, y_test, name=name, ax=ax, # plot_chance_level=True
             )
-            tem.figure_.clear()
-    
+            tem.figure_.clear()    
             return tem
-    
+        
         #set up
         thePrec = np.empty(0)
         theRecall = np.empty(0)
         theSet = np.empty(0)
-        
-        
+
         #Loop through classifiers
-        for name, clf in zip(names, classifiers):
-        
-            
-    
-            pr = getPrecRec(X, y, clf, Axis)
-    
+        for name, label in names.items():
+            clf = get_model(name)
+            pr = getPrecRec(X, y, clf, ax)
             count = 0
             prec = pr.precision
             recall = pr.recall
-    
-    
-            while((count:=count+1) <= 20):
-                pr = getPrecRec(X, y, clf, Axis)
-    
+        
+            while((count:=count+1) <= 10):
+
+                pr = getPrecRec(X, y, clf, ax)
+        
                 if prec.size < pr.precision.size:
                     prec += pr.precision[:prec.size]
                     recall += pr.recall[:recall.size]
                 else:
-                    p = np.ones(prec.size)
-                    r = np.ones(recall.size)
-    
                     p = prec/count
                     r = recall/count
-    
+        
                     p[:pr.precision.size] = pr.precision
                     r[:pr.recall.size] = pr.recall
                     prec += p
                     recall += r
-    
-    
-    
-            theSet = np.concatenate((theSet, np.full((prec.size), name)))
+        
+            theSet = np.concatenate((theSet, np.full((prec.size), label)))
             thePrec = np.concatenate((thePrec, prec/count))
             theRecall = np.concatenate((theRecall, recall/count))
-    
-        prdf = pd.DataFrame(data={"prec": thePrec, 
-                                  "recall": theRecall, 
-                                  "group": theSet})
-    
-        plot = sns.lineplot(data=prdf, x="recall", y="prec", hue='group')
         
-        return plot    
+        prdf = pd.DataFrame(data={"precision": thePrec, 
+                                "recall": theRecall, 
+                                "Model name": theSet})
+        
+        sns.lineplot(data=prdf, x="recall", y="precision", hue='Model name',
+                    palette=self.palette[:len(names)])
+        return fig
+
     
 title = sys.argv[-1] if 'title' in sys.argv else None
 
 def doc(nc=2, np=2, kde=False, bcu=False ):
     from pylib.tools import FigNum, show_date
 
-    def targets(nc, np=2):
+    def trainers(nc, np=2):
         if np==1: 
             a = dict(psr=('psr',), msp=('msp',))
         else:
@@ -382,18 +383,18 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     skprop = dict(
         features= ('log_var', 'log_fpeak', 'log_epeak', 'd'),
         clips = [(None,None), (None,None),(-1,3), (-0.1,2) ],
-        targets = targets(nc,np),
+        trainers = trainers(nc,np),
         model_name = 'SVC',
         truth_field='association',
-        # will be set to a targets key
-        target_field = 'target',
+        # will be set to a trainers key
+        trainer_field = 'trainer',
         )
     fn = FigNum(n=1, dn=0.1)
     if kde:
         show(f"""# KDE approach  ({dataset.upper()})""" if title is None else '# '+title)
         show_date()
         show("""Not applying ML, so no class fits to generate prediction model. Instead we compute KDE probability density distributions
-        for the ML targets, which we then apply to the unid and bcu associations.
+        for the ML trainers, which we then apply to the unid and bcu associations.
         """)
     else:
         show(f"""# ML {nc}-class Classification  ({dataset.upper()})""")
@@ -410,18 +411,22 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
 
     show(f"""## Train then apply prediction """)
     self.train_predict()
-    df=self.df
 
-    show(f"""### The confusion matrix""")
-    cmdf = self.confusion_matrix()
-    show(cmdf)
-    
-    N = self.target_counts['pulsar']
-    TP = cmdf.iloc[-1,-1]
-    FP = cmdf.sum(axis=1)[-1] - TP
-    FN = cmdf.sum(axis=0)[-1] - TP
-    efficiency, purity = TP/N, TP/(FN+TP)
-    show(f'\n{purity=:.2f}, {efficiency=:.2f}' )
+    show(f"""### Precision-recall graph
+         These evaluations shows how well the pulsars are distinguished from blazars.
+         Comparison of our SVC model with the neural network alternative.""")
+    show_fig(self.precision_recall, dict(SVC='Support Vector Machine', NN='Neural network'), fignum=fn.next)
+
+
+    # show(f"""### The confusion matrix""")
+    # cmdf = self.confusion_matrix()
+    # show(cmdf)
+    # N = self.trainer_counts['pulsar']
+    # TP = cmdf.iloc[-1,-1]
+    # FP = cmdf.sum(axis=1)[-1] - TP
+    # FN = cmdf.sum(axis=0)[-1] - TP
+    # efficiency, purity = TP/N, TP/(FN+TP)
+    # show(f'\n{purity=:.2f}, {efficiency=:.2f}' )
 
     show(f"""### All predictions""")
     table = self.prediction_association_table()
@@ -436,19 +441,20 @@ if 'doc' in sys.argv:
 
     
 
-def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2, bcu=False):
+def kde_setup(kde_vars = 'sqrt_d log_epeak diffuse'.split(), nc=2, bcu=False,
+           cut = '0.15<Ep<4 & d>0.2 & variability<25'   ):
     self = doc(nc=nc, np=1, kde=True, bcu=bcu)
     def make_group(self):
 
         def groupit(s):
             if s.association in 'unid bcu spp'.split(): return s.association
             # if s.association=='bcu': return 'bcu'
-            if ~ pd.isna(s.target): return s.target
+            if ~ pd.isna(s.trainer): return s.trainer
             return np.nan
         df = self.df
         df['subset'] = df.apply(groupit, axis=1)
     make_group(self)
-    cut = '0.15<Ep<4 & d>0.2 & variability<25'
+    
     show(f'### Data selection cut: "{cut}"')
     dfc = self.df.query(cut).copy()
     all = pd.Series(self.df.groupby('subset').size(), name='total')
@@ -466,8 +472,9 @@ def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2, bcu=False):
 
     
     show(f"""## Create KDE functions instead of ML training
-    * Classes: {', '.join(self.targets.keys())}
+    * Classes: {', '.join(self.trainers.keys())}
     * Features: {', '.join(kde_vars)} 
+
     """)
     apply_kde(self, dfc, kde_vars)
     return self, dfc
@@ -510,6 +517,10 @@ def hist_kde(self,df, ):
 if 'kde' in sys.argv:
     self, dfc = kde_setup()
 
+if 'kde_no_dcut' in sys.argv:
+    self, data = kde_setup(cut='0.15<Ep<4 & variability<25')
+    unid = data[data.subset=='unid']
+
 if 'kdedoc' in sys.argv:
     import warnings
     warnings.filterwarnings("ignore")
@@ -542,8 +553,8 @@ def plot_kde_density(self,df, s=10, **kwargs):
                                     gridspec_kw=dict(wspace=0.3,hspace=0.05))
     other_kw   =  dict(hue_order=['unid'],    palette=['0.5'],)
     other_kw.update(kwargs)
-    kde_kw   = dict(hue_order=self.target_names, palette=self.palette,  alpha=0.4,legend=False)
-    target_kw= dict(hue_order=self.target_names, palette=self.palette,)
+    kde_kw   = dict(hue_order=self.trainer_names, palette=self.palette,  alpha=0.4,legend=False)
+    target_kw= dict(hue_order=self.trainer_names, palette=self.palette,)
 
     spectral_kw = dict(data=df, x='log_epeak', y='d',  hue='subset', s=s, edgecolor='none' )
     flux_kw = dict(data=df, y='log_fpeak', x='diffuse',  hue='subset',s=s, edgecolor='none' )

@@ -5,16 +5,33 @@ Interface to scikit-learn, adapting a DataFrame like interface
 import numpy as np
 import pandas as pd
 
+def get_model(model_name):
+
+    from sklearn.naive_bayes import GaussianNB 
+    from sklearn.svm import  SVC
+    from sklearn.tree import DecisionTreeClassifier
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.ensemble import RandomForestClassifier
+
+    # instantiate the model by looking up the name
+    cdict = dict(GNB = (GaussianNB, {}),
+                SVC = (SVC, dict(gamma=2, C=1)), 
+                tree= (DecisionTreeClassifier, {}),
+                RFC = (RandomForestClassifier, dict(n_estimators=100, max_features=2)),
+                NN  = (MLPClassifier, dict(alpha=1, max_iter=1000)),
+                )
+    F,kw = cdict[model_name]
+    return F(**kw)
 
 class SKlearn():
     """
     df: DataFrame
     skprop: dict with keys:
             features: list of columns in the dataframe
-            targets: dict, keys names of groups, values list of column names
+            trainers: dict, keys names of groups, values list of column names
             model_name:
             truth_field : column with "truth"
-            target_field: well create column with target
+            trainer_field: well create column with target
     """
 
     def __init__(self, 
@@ -26,9 +43,9 @@ class SKlearn():
 
     def __repr__(self):
         return f"""\
-SKlearn specifications: 
+Scikit-learn specifications: 
 * features: {', '.join(self.features)}
-* classes: {', '.join(self.targets.keys())}
+* classes: {', '.join(self.trainers.keys())}
 * model: {self.model}"""
     
     def _set_model(self, skprop):
@@ -55,24 +72,24 @@ SKlearn specifications:
     def _set_df(self, df):
         """
         Set up a DataFrame for fitting:
-        Add a column 'target' to the DataFrame `df` depending on column 'association'
-        If if is in the targets list, set the target name
+        Add a column 'trainer' to the DataFrame `df` depending on column 'association'
+        If if is in the trainers list, set the name
         """
 
         assert np.all(np.isin(self.features, df.columns) ),f'One or more feature {self.feature} missing'
         assert self.truth_field in df.columns, 'No "association" column'
         cdict = dict()
-        for key,vars  in self.targets.items():
+        for key,vars  in self.trainers.items():
             for var in vars:
                 cdict[var] = key
-        df[self.target_field] = df.association.apply(lambda x: cdict.get(x, np.nan) )
-        self.target_counts = df.groupby(self.target_field, sort=False).size()
-        assert np.all(self.target_counts>0), f'empty target category {self.target_counts}'
+        df[self.trainer_field] = df.association.apply(lambda x: cdict.get(x, np.nan) )
+        self.trainer_counts = df.groupby(self.trainer_field, sort=False).size()
+        assert np.all(self.trainer_counts>0), f'empty target category {self.trainer_counts}'
         self.df = df
 
     @property
-    def target_names(self):
-        return self.target_counts.keys()
+    def trainer_names(self):
+        return self.trainer_counts.keys()
     
 
     def getXy(self,df=None) : 
@@ -80,9 +97,9 @@ SKlearn specifications:
         """
         if df is not None: self.set_df(df)
         df = self.df
-        tsel = ~pd.isna(df[self.target_field])
+        tsel = ~pd.isna(df[self.trainer_field])
         assert sum(tsel)>0, 'No data selected for training.'
-        return df.loc[tsel, self.features], df.loc[tsel, self.target_field]
+        return df.loc[tsel, self.features], df.loc[tsel, self.trainer_field]
     
     def fit(self):
         """
@@ -128,7 +145,7 @@ SKlearn specifications:
         dfq = self.df.query(query) if query is not None else self.df
         X = dfq.loc[:, self.features]
         return pd.DataFrame(mdl.predict_proba(X), index=dfq.index,
-                            columns=['p_'+ n for n in self.target_names])
+                            columns=['p_'+ n for n in self.trainer_names])
     
     
     
