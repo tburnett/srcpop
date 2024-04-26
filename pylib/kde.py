@@ -95,16 +95,14 @@ class FeatureSpace(dict):
                        zip(self.names, np.meshgrid(*self.centers.values()))))
 
         # Evaluate KDE on the grid, measure integrals, renormalize"
-        self.grid_kde = pd.DataFrame()
-        for comp in  kdes.keys():
-            self.grid[comp+'_kde'] = kdes[comp](self.grid)
-            self.grid_kde = kdes[comp](self.grid)
+        self.class_names = kdes.keys()
+        for comp in  self.class_names:
+            grid_kde =  self.grid[comp+'_kde'] = kdes[comp](self.grid)
 
         # calculate normalization, save factors
-        self.norms = self.grid_kde.sum() * self.volume/self.N**3
-        self.grid_kde /= self.norms
-        # self.grid.iloc[:, -4:] /= self.norms
-        assert np.any(~pd.isna(self.grid_kde)), 'Found a Nan on the grid!'
+        norms = grid_kde.sum() * self.volume/self.N**3
+        grid_kde /= norms
+        assert np.any(~pd.isna(grid_kde)), 'Found a Nan on the grid!'
 
 
     def __repr__(self):
@@ -115,16 +113,44 @@ class FeatureSpace(dict):
         """
         return Gaussian_kde(df, self.names, bw_method=bw_method)
 
+    def train(self, df_dict,  bw_method=None):
+        # make dicts with DF for class data sets and unid, then KDE for each
+        # from collections import OrderedDict
+        # grps = data.groupby('subset')
+        # df_dict = dict( (name, grps.get_group(name)) for name in class_names )
+        
+        kdes = dict( (name, self.generate_kde(df, bw_method=bw_method))
+                        for name, df in df_dict.items() )  
+        self.evaluate_kdes(kdes)#, kdes.keys())
+        
     # ------------These assume evaluate_kdes has been called to add columns -------------
     
     def projection(self, varname):
-        """ Return DataFrame with index varname's value and columns for class components + unid,
+        """ Return DataFrame with index varname's value and columns for class components,
         basically an integral over the other variables
         """        
         t = self.grid.copy().groupby(varname).sum()*(self.volume/self.size[varname])/self.N**2
-        return t.iloc[:, -4:]
+        return t.iloc[:, -len(self.names):]
+    
+    def projection_info(self, unid):
+        """Return a dict in variable names of projection dataframes
+        Each has a column "x" for the bin center, "unid" for the unid histogram, 
+        and columns for the projections of each component
+
+        """
+        df_dict={}
+        for var in self.names: 
+            d = {}
+            d['x'] = self.centers[var]
+            d['unid'] =  np.histogram(unid[var], self.bins[var])[0] 
+            df = self.projection(var)
+            for y in  df.columns:
+                d[y[:-4]] = df[y].values # strip off _kde
+            df_dict[var] = pd.DataFrame(d)
+        return df_dict
         
     def projection_dict(self, var_name, cls_name):
+        """For sns.lineplot"""
         td = self.projection(var_name)
         return dict(x=td.index, y=td[cls_name+'_kde'])
         
@@ -144,25 +170,27 @@ class FeatureSpace(dict):
         """Density plots for each of the features comparing the training data with projections of the KDE fits.
 
         """
-        fig, axx = plt.subplots(ncols=3,nrows=3, figsize=(12,7), sharex='col',
-                            gridspec_kw=dict(hspace=0.1, wspace=0.1))
+        fig = plt.figure(figsize=(12,7), layout='constrained')
+        axx = fig.subplots(ncols=3 ,nrows=3,  sharex='col',
+                            gridspec_kw=dict(hspace=0.1, wspace=0.1)
+        )
+        # axx = fig.subplots(3,3, sharex='col')
         
         for (i, (cls_name, df)), color in zip(enumerate(df_dict.items()), palette):
             
             for j, var_name in enumerate( self.names ):
                 ax = axx[i,j]
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                ax.spines['left'].set_visible(False)
+                for spine in 'top right left'.split():
+                    ax.spines[spine].set_visible(False)
                 sns.histplot(ax=ax,  x=df[var_name], bins=self.bins[var_name], 
-                element='step', stat='density', color='0.2', edgecolor='w')
+                    element='step', stat='density', color='0.2', edgecolor='w')
         
                 sns.lineplot( ax=ax, **self.projection_dict(var_name, cls_name), 
                             color=color, ls='-', marker='', lw=2)
                 ax.set( xlim=self.limits[var_name], ylabel='', yticks=[] )
             axx[i,0].set_ylabel(cls_name+f'\n{len(df)}', rotation='horizontal', ha='center')
         return fig
-    
+        
     def component_comparison(self, unid, norm, palette):
         """Histograms of Unid data for the KDE feature variables, compared with an estimate
         of the class contents. Each component was normalized to the total shown in the legend.
@@ -170,19 +198,20 @@ class FeatureSpace(dict):
         fig, axx =plt.subplots(ncols=3, figsize=(12,4), sharey=True, 
                             gridspec_kw=dict(wspace=0.1))
         
+        norm_sum = np.sum(list(norm.values()))
         for var,ax in zip(self.names, axx):
             
             df = self.normalize( var, norm)   
             x= df.index
             for y,color in zip(df.columns, palette+['white']):
                 sns.lineplot(df,ax=ax, x=x, y=y,  color=color, 
-                            label=f'{norm[y] if y!="sum" else round(np.sum(df.iloc[:,-1]))} {y}', 
+                            label=f'{norm[y] if y!="sum" else norm_sum} {y}', 
                             lw=2 if y=='sum' else 1,     legend=None)
             sns.histplot(unid, bins=self.bins[var], ax=ax, x=var, element='step', color='0.2', edgecolor='w', 
                         label=f'{len(unid)} unid') 
             ax.set(ylabel='counts / bin')
                         
-        ax.legend(fontsize=12, bbox_to_anchor=(0.9,1.15), loc='upper left');
+        ax.legend(fontsize=12, bbox_to_anchor=(0.9,1.15), loc='upper left')
         ax.set(yticks=np.arange(0,151,50))
         return fig
     

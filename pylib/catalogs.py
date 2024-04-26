@@ -407,7 +407,7 @@ class Fermi4FGL(CatDF, pd.DataFrame):
                 nufnu=s['nuFnu_Band'][1:],
                 ),  name=name)
 
-    def band_plot(self, name, ax=None, emax=None, specfun=True, **kwargs):
+    def band_plot(self, name, ax=None, emax=None, specfun=True, ms=None, **kwargs):
         
         fb = self.flux_band(name)
         e_bins = np.array([ 0.1, 0.3, 1, 3, 10, 30, 100, 1000])
@@ -420,9 +420,11 @@ class Fermi4FGL(CatDF, pd.DataFrame):
         fig,ax=plt.subplots(figsize=(8,5)) if ax is None else (ax.figure, ax)
         scale = 1e9 * energy # / 624.150648
         ax.errorbar(x=energy[bar], xerr=e_err[:,bar], y=(scale*fb.flux)[bar], 
-                    yerr=(scale*err)[:,bar], fmt='o');
-        ax.errorbar(x=energy[lim], xerr=e_err[:,lim], y=(y:=(scale* fb.high)[lim]), 
-                    uplims=True*sum(lim), yerr=y/2,  fmt='.',color='grey');
+                    yerr=(scale*err)[:,bar], fmt='o', ms=ms);
+        if sum(lim)>0:
+            _,caps,_ = ax.errorbar(x=energy[lim], xerr=e_err[:,lim], y=(y:=(scale* fb.high)[lim]), 
+                        uplims=True*sum(lim), yerr=y/2,  fmt='.',color='grey')
+            caps[0].set_markersize(ms)
         if specfun:
             sf = self.get_specfunc(name, 'LP')
             sf.sed_plot(ax=ax,plot_kw=dict(color='orange'),

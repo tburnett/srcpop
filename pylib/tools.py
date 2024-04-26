@@ -8,6 +8,7 @@ import seaborn as sns
 def set_theme(argv):
     plt.rcParams['figure.figsize']=[5,3]
     sns.set_theme('notebook' if 'talk' not in argv else 'talk', font_scale=1.25) 
+    if 'paper' in argv: sns.set_theme('paper')
     if 'dark' in argv:
         # sns.set_style('darkgrid')
         plt.style.use('dark_background') #s
@@ -32,13 +33,18 @@ def diffuse_kw(axis='x'):
             axis+'ticks': np.arange(-1,2.1,1),
             axis+'ticklabels': '0.1 1 10 100'.split(),
            }
-def epeak_kw(axis='x'):
+def epeak_kw(axis='x', show_100=False):
     return {axis+'label':'$E_p$  (GeV)',
-            axis+'ticks': np.arange(-1,1.1,1),
-            axis+'ticklabels':'0.1 1 10 '.split(),
+            axis+'ticks': np.arange(-1,1.1 if not show_100 else 2.1,1),
+            axis+'ticklabels':('0.1 1 10 ' if not show_100 else '0.1 1 10 100').split(),
             }
 
-           
+
+def var_kw(axis='x'):
+    return {axis+'label':'Variability index',
+            axis+'ticks': np.arange(0,4.1,1),
+            axis+'ticklabels':'1 10 100 $10^3$ $10^4$'.split(),
+            }           
 
 def ternary_plot(df, columns=None, ax=None):
     import ternary

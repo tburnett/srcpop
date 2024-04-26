@@ -12,7 +12,7 @@ from pylib.scikit_learn import SKlearn
 
 dark_mode = set_theme(sys.argv)
 if 'show' in sys.argv:
-    from pylib.ipynb_docgen import show, show_fig, capture_show
+    from pylib.ipynb_docgen import show, show_fig, capture_show, capture_hide
 
 dataset='dr3' if 'dr3' in sys.argv else 'dr4'
 
@@ -30,6 +30,10 @@ def lp_pars(fgl):
     df['d_unc'] = 2*fgl.field('unc_LP_beta')
     return df.drop(columns=['lp_spec'])
 
+#  create association with lower-case class1, combine 'unk','bcu', and '' to 'unid'
+def reclassify(class1):            
+    cl = class1.lower()
+    return 'unid' if cl in ('unk','bcu', '') else cl
 
 #=======================================================================
 class MLfit(SKlearn):
@@ -71,10 +75,11 @@ class MLfit(SKlearn):
         # zero the SNR r95 values
         df['r95'] = df.r95.apply(lambda x: 0 if pd.isna(x) else x)
  
-        # create association with lower-case class1, combine 'unk' and '' to 'unid'
-        def reclassify(class1):            
-            cl = class1.lower()
-            return 'unid' if cl in ('unk', '') else cl
+        ### move out
+        # # create association with lower-case class1, combine 'unk' and '' to 'unid'
+        # def reclassify(class1):            
+        #     cl = class1.lower()
+        #     return 'unid' if cl in ('unk', '') else cl
    
         df['association'] = df.class1.apply(reclassify)
 
@@ -108,7 +113,7 @@ class MLfit(SKlearn):
         
         # combine a bunch of the class1 guys into "other"
         def make_other(s):
-            if s in 'bll fsrq psr msp bcu spp snr glc unid'.split():
+            if s in 'bll fsrq psr msp spp snr rdg glc unid'.split(): # remobe bcu
                 return s
             return 'other'
             
@@ -116,7 +121,7 @@ class MLfit(SKlearn):
         def simple_pivot(df, x='prediction', y= 'association'):        
             ret =df.groupby([x,y]).size().reset_index().pivot(
                 columns=x, index=y, values=0)
-            return ret.reindex(index='bll fsrq psr msp glc bcu spp snr other unid'.split())
+            return ret.reindex(index='bll fsrq psr msp glc spp snr rdg other unid'.split()) ## remove bcu
             
         t=simple_pivot(df)
         t[np.isnan(t)]=0
@@ -163,9 +168,9 @@ class MLfit(SKlearn):
         ax.set(xlabel='Prediction counts', ylabel='Association type')
         ax.legend( loc='upper right', #bbox_to_anchor=(0.78,0.75), loc='lower left',
                 frameon=True,   title='Training class')
-        ax.axhline(3.5, ls='--', color='0.9')
+        ax.axhline(3.5, ls='--', color='0.9' if dark_mode else '0.1')
         ax.text(1200, 2.5, 'Used for training',ha='center')
-        ax.text(1200, 6.5, 'Targets', ha='center')
+        ax.text(1200, 5.5, 'Targets', ha='center')
         return fig
     
     def pairplot(self, query='', **kwargs):  
@@ -198,16 +203,16 @@ class MLfit(SKlearn):
 
     def pulsar_prob_hists(self):
         """Histograms of the classifier pulsar probability. 
-        Upper three plots: each of the labeled training clases; lower plots: stacked histograms
+        Upper two plots: each of the labeled training classes; lower plot: histogram
         for the classifier assignments, colors corresponding to the plots above.
         """
         probs= self.predict_prob(query=None)
         df = pd.concat([self.df, probs], axis=1)
-        titles = ['psr+msp','bll','fsrq','unid']
-        non_trainers = ['unid', 'bcu']
+
+        non_trainers = ['unid'] #, 'bcu'] 
         titles = list(self.trainer_names) + non_trainers
-        fig, axx = plt.subplots(nrows=len(titles), figsize=(8,10),sharex=True,
-                                    gridspec_kw=dict(hspace=0.05))
+        fig, axx = plt.subplots(nrows=len(titles), figsize=(8,8),sharex=True, sharey=True,
+                                    gridspec_kw=dict(hspace=0.1))
         kw = dict( x='p_pulsar',  bins=np.arange(0,1.01, 0.025), log_scale=(False,True),
                     element='step', multiple='stack', legend=False)
 
@@ -216,12 +221,13 @@ class MLfit(SKlearn):
                         palette=[color],**kw)            
 
         for i,nt in enumerate(non_trainers):
-            sns.histplot(df.query(f'association=="{nt}"'), ax=axx[i+3], hue='prediction', 
-                    hue_order=self.trainer_names,  palette=self.palette,**kw);
+            ntr = len(self.trainers)
+            sns.histplot(df.query(f'association=="{nt}"'), ax=axx[i+ntr], hue='prediction', 
+                    hue_order=self.trainer_names,  palette=self.palette[:ntr],**kw);
         
         axx[-1].set(xlabel='Pulsar probability')
         for ax, title in zip(axx, titles):
-            ax.text( 0.5, 0.85, title, ha='center', transform=ax.transAxes, fontsize=14)
+            ax.text( 0.5, 0.75, title, ha='center', transform=ax.transAxes, fontsize='large')
         return fig
     
     def plot_spectral(self, df):
@@ -254,7 +260,6 @@ class MLfit(SKlearn):
         sns.kdeplot(df, ax=ax2, **kw, hue_order=self.trainer_names, palette=self.palette, alpha=0.4,legend=False );
         ax1.set(ylim=(-2.75,4), **fpeak_kw('y'), xlim=(-1,2.5))
         return fig
-    
     
     def write_summary(self, overwrite=False):
 
@@ -299,7 +304,7 @@ class MLfit(SKlearn):
 
         
         
-    def precision_recall(self, names=None, ax=None, test_size=0.33, ncount=10):
+    def precision_recall(self, names=None, ax=None, test_size=0.33, ncount=10, ):
         """Plot of the precision, or purity, vs the recall, or efficiency,
           for the binary pulsar selection. 
         """
@@ -319,9 +324,9 @@ class MLfit(SKlearn):
             classifier = theclf.fit(X_train, y_train)
             #Get precision and recall values
             tem = PrecisionRecallDisplay.from_estimator(
-                classifier, X_test, y_test, name=name, ax=ax, # plot_chance_level=True
+                classifier, X_test, y_test, name=name, ax=None, # plot_chance_level=True
             )
-            tem.figure_.clear()    
+            plt.close(tem.figure_)    
             return tem
         
         #set up
@@ -359,19 +364,96 @@ class MLfit(SKlearn):
         
         prdf = pd.DataFrame(data={"precision": thePrec, 
                                 "recall": theRecall, 
-                                "Model name": theSet})
+                                "Classification model": theSet})
         
-        sns.lineplot(data=prdf, x="recall", y="precision", hue='Model name',
-                    palette=self.palette[:len(names)])
+        sns.lineplot(data=prdf, ax=ax, x="recall", y="precision", hue='Classification model',
+                    palette=self.palette[:len(names)],lw=2)
+        ax.set(xlim=(0,1), ylim=(0,1))
         return fig
 
+
+class Doc(MLfit):
+
+    def zone_vs_class(self, query='variability<25', *, zone_def=[0.1,0.95], 
+                    var_name='log_epeak', bins=np.arange(-1,2.2,0.1)):
+        """Table of histograms of the {var_name} with pulsar prediction zone columns 
+        and association class rows. The number of sources are shown on the histogram plots, which are log-log scale.
+        The energy bin above 100 GeV contains all entries above that. The vertical scale shows three decades to 1000.
+        """
+        # append columns with predection probability
+        probs = self.predict_prob(query=None)
+        dfc = pd.concat([self.df, probs], axis=1).copy()
+        if query is not None:
+            df=dfc.query(query).copy()
+        else:
+            df = dfc.copy()
+        df.log_epeak = df.log_epeak.clip(-1,2)
+
+        # set zone, class name, make a 2-d group
+        df['zone'] = np.digitize(df.p_pulsar, zone_def)
+        zone_names = 'blazar undetermined pulsar'.split()
+        
+        def set_class(x):
+            if x in 'bll fsrq bcu unid'.split(): return x
+            if x in 'psr msp'.split(): return 'pulsar' 
+            return np.nan
+        df['class_name'] = df.association.apply(set_class)
+        class_names = 'bll fsrq pulsar unid bcu'.split()
+        
+        g = df.groupby(['class_name','zone'])
+        
+        fig = plt.figure(figsize=(12,12), layout="constrained")
+        axd = fig.subplot_mosaic(
+                    [ ['.', '.',  't',    't',  't'  ],
+                        ['s', '.',  'z0',   'z1', 'z2' ],
+                        ['s', 'c0', 'h00', 'h01', 'h02'],
+                        ['s', 'c1', 'h10', 'h11', 'h12'],
+                        ['s', 'c2', 'h20', 'h21', 'h22'],
+                        ['s',  '.', '.',    '.',  '.'  ],
+                        ['s', 'c3', 'h30', 'h31', 'h32'],
+                        ['s', 'c4', 'h40', 'h41', 'h42'],
+                        ['.', '.',  'b',   'b',   'b'  ], ],
+                width_ratios = [0.5,0.75,3,3,3], 
+                height_ratios=[0.5,0.5,3,3,3,0.5,3,3,1], )
+
+        def make_label(ax,text, fontsize='large',  **kwargs):
+            ax.text(0.5,0.5, text, ha='center', va='center', fontsize=fontsize,  **kwargs)
+            ax.set_axis_off()
+            
+        for label, ax in axd.items():
+            if label=='t':  make_label(ax, 'Pulsar prediction zone',fontsize=22); continue
+            if label=='s':  make_label(ax, 'Association class', rotation='vertical',fontsize=22); continue
+            if label=='b':  make_label(ax, 'Peak energy [GeV]' if var_name=='log_epeak' else var_name, fontsize=None,); continue
+            if label[0]=='z': make_label(ax, zone_names[int(label[1])]); continue;
+            if label[0]=='c': make_label(ax, class_names[int(label[1])]); continue;
+        
+            c,z = int(label[1]), int(label[2])
+            try:
+                cdf = g.get_group((class_names[c], z))
+                sns.histplot( ax=ax, x=cdf[var_name], log_scale=(False, True), element='step', 
+                color='maroon', bins=bins, edgecolor='w' )
+            except KeyError: #if empty
+                cdf = []
+            ax.set(xlabel='', ylabel='', yticklabels=[], # xlim=(-1,2.1),
+                ylim=(0.8,1e3))
+            if  var_name=='log_epeak':
+                ax.set(xticks=[-1,0,1,2], xticklabels=[] if c<4 else '0.1 1 10 100'.split())
+            elif c<4:
+                ax.set(xticklabels=[])
+                
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.text(0.6,0.85, f'{len(cdf)}', transform=ax.transAxes, ha='right', fontsize='small')
+        return fig
     
+
+        
 title = sys.argv[-1] if 'title' in sys.argv else None
 
-def doc(nc=2, np=2, kde=False, bcu=False ):
+def doc(nc=2, np=2, nf=4, kde=False, bcu=False ):
     from pylib.tools import FigNum, show_date
 
-    def trainers(nc, np=2):
+    def trainers():
         if np==1: 
             a = dict(psr=('psr',), msp=('msp',))
         else:
@@ -381,9 +463,10 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
         return dict(**a,**b)
     
     skprop = dict(
-        features= ('log_var', 'log_fpeak', 'log_epeak', 'd'),
+        features= ('log_var', 'log_fpeak', 'log_epeak', 'd') if nf==4 else \
+                  ('log_var', 'log_epeak', 'd'),
         clips = [(None,None), (None,None),(-1,3), (-0.1,2) ],
-        trainers = trainers(nc,np),
+        trainers = trainers(),
         model_name = 'SVC',
         truth_field='association',
         # will be set to a trainers key
@@ -397,10 +480,10 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
         for the ML trainers, which we then apply to the unid and bcu associations.
         """)
     else:
-        show(f"""# ML {nc}-class Classification  ({dataset.upper()})""")
+        show(f"""# ML {nc}-class Classification """)
 
     with capture_show('Setup:') as imp:
-        self = MLfit(skprop)
+        self = Doc(skprop)
     show(imp)
     if kde: 
         return self
@@ -415,6 +498,8 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     show(f"""### Precision-recall graph
          These evaluations shows how well the pulsars are distinguished from blazars.
          Comparison of our SVC model with the neural network alternative.""")
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.set(xlim=(0,1), ylim=(0,1))
     show_fig(self.precision_recall, dict(SVC='Support Vector Machine', NN='Neural network'), fignum=fn.next)
 
 
@@ -432,21 +517,37 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     table = self.prediction_association_table()
     show(table)
     show_fig(self.plot_prediction_association,table, fignum=fn.next)
-    show(f"""#### Write summary file, adding diffuse correlation""")
+
+    show(f"""## The issue with this
+         In figure {fn.next} we show the pulsar probability distributions for the training classes, and
+         the unid target. The large number of unid sources not near 0 or 1 demonstrates the 
+         existence of a component not in the training set, violating the basic ML assumption.
+         """)
+    show_fig(self.pulsar_prob_hists, fignum=fn.current)
+
+    # show(f"""#### Write summary file, adding diffuse correlation""")
     self.write_summary()
     return self
 
 if 'doc' in sys.argv:
     self = doc()
+    plt.close() # don't know why this is needed
 
-    
+def apply_diffuse(df, nc=2):
+    df3 = pd.read_csv(f'files/{dataset}_{nc}_class_classification.csv', index_col=0)
+    df['diffuse'] = df3.diffuse
+
+include_bcu = 'include_bcu' in sys.argv
 
 def kde_setup(kde_vars = 'sqrt_d log_epeak diffuse'.split(), nc=2, bcu=False,
            cut = '0.15<Ep<4 & d>0.2 & variability<25'   ):
     self = doc(nc=nc, np=1, kde=True, bcu=bcu)
+
     def make_group(self):
 
         def groupit(s):
+            if 'include_bcu' in sys.argv:
+                if s.association in 'unid bcu'.split(): return 'unid' # special
             if s.association in 'unid bcu spp'.split(): return s.association
             # if s.association=='bcu': return 'bcu'
             if ~ pd.isna(s.trainer): return s.trainer
@@ -464,17 +565,18 @@ def kde_setup(kde_vars = 'sqrt_d log_epeak diffuse'.split(), nc=2, bcu=False,
     if bcu: classes = classes + ['bcu']
     t =pd.DataFrame([all,sel,pct])[classes]; 
     # t.index.name='counts'
-    show(t)
-    
-    # apply diffuse
-    df3 = pd.read_csv(f'files/{dataset}_{nc}_class_classification.csv', index_col=0)
-    dfc['diffuse'] = df3.diffuse
+    show(t)    
+    # # apply diffuse
+    # df3 = pd.read_csv(f'files/{dataset}_{nc}_class_classification.csv', index_col=0)
+    # dfc['diffuse'] = df3.diffuse
+    apply_diffuse(dfc)
 
     
     show(f"""## Create KDE functions instead of ML training
     * Classes: {', '.join(self.trainers.keys())}
     * Features: {', '.join(kde_vars)} 
-
+    
+    Apply to unids {'+ bcus' if include_bcu else ''}
     """)
     apply_kde(self, dfc, kde_vars)
     return self, dfc
@@ -518,7 +620,7 @@ if 'kde' in sys.argv:
     self, dfc = kde_setup()
 
 if 'kde_no_dcut' in sys.argv:
-    self, data = kde_setup(cut='0.15<Ep<4 & variability<25')
+    self, data = kde_setup(cut='0.15<Ep<10 & variability<25')
     unid = data[data.subset=='unid']
 
 if 'kdedoc' in sys.argv:
@@ -581,7 +683,8 @@ def plot_kde_density(self,df, s=10, **kwargs):
         sns.kdeplot(    ax=ax2, **fix_for_kde(flux_kw), **kde_kw)
 
         for ax in (ax1,ax2):
-            ax.set(ylim=(-2.75,4), **fpeak_kw('y'), xlim=(-1,2.5))
+            ax.set(#ylim=(-2.75,4), 
+                   **fpeak_kw('y'), xlim=(-1,2.5))
         ax1.set(xticklabels=[])
 
     spectral( *axx[:,0])
