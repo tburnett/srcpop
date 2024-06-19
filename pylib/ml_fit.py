@@ -8,7 +8,7 @@ import pandas as pd
 import seaborn as sns
 
 from pylib.catalogs import Fermi4FGL
-from pylib.tools import epeak_kw, fpeak_kw, set_theme
+from pylib.tools import FigNum, show_date, update_legend, epeak_kw, fpeak_kw, set_theme
 from pylib.scikit_learn import SKlearn
 
 dark_mode = set_theme(sys.argv)
@@ -18,10 +18,7 @@ if 'show' in sys.argv:
 dataset='dr3' if 'dr3' in sys.argv else 'dr4'
 
 def lp_pars(fgl):
-    """ extract LP spectral functions from 4FGL catalog object get its parameters
-    Return DataFrame with EP,FP,d,d_unc
-    """
-
+    # extract LP spectral function from 4FGL catalog object get its parameters
     df = pd.DataFrame(index=fgl.index)
     df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
     sed = df['lp_spec']
@@ -283,86 +280,136 @@ class MLfit(SKlearn):
         cols= 'source_type glat glon significance r95 Ep Fp d diffuse p_pulsar'.split()
         df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
         print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
+        
+        
+        
+        
+        
+    def precision_recall(self, names=None, ax=None, test_size=0.33, ncount=10):
+        """Plot of the precision, or purity, vs the recall, or efficiency,
+          for the binary pulsar selection. 
+        """
+        from pylib.scikit_learn import get_model 
 
-title = sys.argv[-1] if 'title' in sys.argv else None
+        fig, ax = plt.subplots(figsize=(5,5) ) if ax is None else (ax.figure, ax)
+        if names is None:
+            names = {self.model_name : str(self.model)}
+
+        X,y = self.getXy()
 
 
-    #Takes a tuple of classifiers and a tuple of their names
-    # Axis object needs working on
-    def pltAvgPrecRec(classifiers, names, X, y, Axis=None):
-
-        import seaborn as sns
-        import sklearn
-        from sklearn.metrics import PrecisionRecallDisplay
-        import matplotlib.pyplot as plt
-
-        def getPrecRec(theX, they, clf, ax=None):
-            X_train, X_test, y_train, y_test = train_test_split(theX, they, test_size=0.333)
-
-            classifier = clf.fit(X_train, y_train)
-
+        def get_prec_rec(theX, they, theclf, ax=None):
+            from sklearn.metrics import PrecisionRecallDisplay
+            from sklearn.model_selection import train_test_split 
+            ty = (they=='pulsar')
+            X_train, X_test, y_train, y_test = train_test_split(theX, ty, test_size=test_size)
+            classifier = theclf.fit(X_train, y_train)
             #Get precision and recall values
             tem = PrecisionRecallDisplay.from_estimator(
-                classifier, X_test, y_test, name=name, ax=ax, plot_chance_level=True
+                classifier, X_test, y_test, name=name, ax=ax, # plot_chance_level=True
             )
-            tem.figure_.clear()
-
+            #em.figure_.clear()
+            plt.close(tem.figure_)
             return tem
 
-        #set up
-        thePrec = np.empty(0)
-        theRecall = np.empty(0)
-        theSet = np.empty(0)
 
+        #set up
+        the_prec = np.empty(0)
+        the_recall = np.empty(0)
+        the_set = np.empty(0)
 
         #Loop through classifiers
-        for name, clf in zip(names, classifiers):
-
-            they = (y=='psr')
-
-            pr = getPrecRec(X, they, clf, Axis)
-
+        for name, label in names.items():
+            clf = get_model(name)
+            pr = get_prec_rec(X, y, clf, ax)
             count = 0
             prec = pr.precision
             recall = pr.recall
 
+            while((count:=count+1) <= 10):
 
-            while((count:=count+1) <= 20):
+                pr = get_prec_rec(X, y, clf, ax)
 
-                pr = getPrecRec(X, they, clf, Axis)
-
+                #Ensure equal length in data arrays
                 if prec.size < pr.precision.size:
                     prec += pr.precision[:prec.size]
                     recall += pr.recall[:recall.size]
                 else:
-                    p = np.ones(prec.size)
-                    r = np.ones(recall.size)
-
+                    #Get average value of prec rec so far to fill empty data points to limit disrupting the data
                     p = prec/count
                     r = recall/count
+
 
                     p[:pr.precision.size] = pr.precision
                     r[:pr.recall.size] = pr.recall
                     prec += p
                     recall += r
 
+            the_set = np.concatenate((the_set, np.full((prec.size), label)))
+            the_prec = np.concatenate((the_prec, prec/count))
+            the_recall = np.concatenate((the_recall, recall/count))
 
+        prdf = pd.DataFrame(data={"precision": the_prec, 
+                                "recall": the_recall, 
+                                "Model name": the_set})
 
-            theSet = np.concatenate((theSet, np.full((prec.size), name)))
-            thePrec = np.concatenate((thePrec, prec/count))
-            theRecall = np.concatenate((theRecall, recall/count))
+        sns.lineplot(data=prdf, x="recall", y="precision", hue='Model name',
+                    palette=self.palette[:len(names)])
+        return fig
 
-        prdf = pd.DataFrame(data={"prec": thePrec, 
-                                  "recall": theRecall, 
-                                  "group": theSet})
+    
+    
+    # Input X array and binary y
+    def get_auc(self, name=None, ax = None, test_size=0.33, ncount = 9):
 
-        plot = sns.lineplot(data=prdf, x="recall", y="prec", hue='group')
+        fig, ax = plt.subplots(figsize=(5,5) ) if ax is None else (ax.figure, ax)
+        if name is None:
+            name = {self.model_name : str(self.model)}
 
-        return plot
+        X,y = self.getXy()
+        ty = (y=='pulsar')
+        count = ncount
 
+        avg_fpr = ()
+        avg_tpr = ()
+        avg_auc = 0
 
+        clf = get_model(name)
+        
+        while((count:=count-1) >= 0):
 
-def doc(nc=2, np=2, kde=False, bcu=False ):
+                X_train, X_test, y_train, y_test = train_test_split(X, ty, test_size=test_size)
+                classifier = clf.fit(X_train, y_train)
+
+                y_proba = classifier.predict_proba(X_test)[::,1]
+
+                fpr, tpr, _ = metrics.roc_curve(y_test, y_proba)
+
+                auc = metrics.roc_auc_score(y_test, y_proba)       
+
+                x = np.linspace(0,1,fpr.size)
+                xnew = np.linspace(0,1, 100)
+
+                if count == ncount-1:
+                    avg_fpr = np.interp(xnew, x, fpr)
+                    avg_tpr = np.interp(xnew, x, tpr)
+                    avg_auc = auc
+                else:
+                    avg_fpr += np.interp(xnew, x, fpr)
+                    avg_tpr += np.interp(xnew, x, tpr)
+                    avg_auc += auc
+
+        prdf = pd.DataFrame(data={"fpr": avg_fpr/(ncount+1), 
+                                  "tpr":  avg_tpr/(ncount+1)})
+
+        auc = round((avg_auc/(ncount+1))*10000)/100
+
+        sns.lineplot(data=prdf, x="fpr", y="tpr", label=f"AUC: {auc}%")
+        sns.move_legend(ax, 'center right')
+
+        return fig
+
+def doc(nc=2, np=2, kde=False, ):
     from pylib.tools import FigNum, show_date
 
     def targets(nc, np=2):
@@ -384,7 +431,7 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
         )
     fn = FigNum(n=1, dn=0.1)
     if kde:
-        show(f"""# KDE approach  ({dataset.upper()})""" if title is None else '# '+title)
+        show(f"""# KDE approach  ({dataset.upper()})""")
         show_date()
         show("""Not applying ML, so no fit to targets to generate prediction model. Instead we compute KDE probability density distributions
         for the ML targets, which we then apply to the unid and bcu associations.
@@ -395,6 +442,7 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     with capture_show('Setup:') as imp:
         self = MLfit(skprop)
     show(imp)
+    
     if kde: 
         return self
     show(str(self))
@@ -424,21 +472,12 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
     
     
     #import 'default' classifiers
-    from sklearn.svm import SVC
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.neural_network import MLPClassifier
-    theNames=('Neural Net',
-              'RBF SVM',
-              'Random Forest')
 
-    theClassifiers=(MLPClassifier(alpha=1, max_iter=1000),
-                 SVC(gamma=2, C=1,probability=True), 
-                 RandomForestClassifier(n_estimators=100, max_features=2))
     
     ax = plt.axes()
-    
-    prp = self.pltAvgPrecRec(theClassifiers, theNames, Axis=ax)
-    show(prp)    
+    #self, names=None, ax=None, test_size=0.33, ncount=10
+    prp = self.precision_recall(theNames,)
+    show(prp)
     
     self.write_summary()
     return self
@@ -446,8 +485,8 @@ def doc(nc=2, np=2, kde=False, bcu=False ):
 if 'doc' in sys.argv:
     self = doc()
 
-def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2, bcu=False):
-    self = doc(nc=nc, np=1, kde=True, bcu=bcu)
+def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2):
+    self = doc(nc=nc, np=1, kde=True)
     def make_group(self):
 
         def groupit(s):
@@ -461,13 +500,11 @@ def kde_setup(kde_vars = 'd log_epeak diffuse'.split(), nc=2, bcu=False):
     cut = '0.15<Ep<4 & d>0.2 & variability<25'
     show(f'### Data selection cut: "{cut}"')
     dfc = self.df.query(cut).copy()
-    all = pd.Series(self.df.groupby('subset').size(), name='total')
+    all = pd.Series(self.df.groupby('subset').size(), name='all')
     sel = pd.Series(dfc.groupby('subset').size(), name='selected')
     pct = pd.Series((100*sel/all).round(0).astype(int), name='%')
-    classes = 'blazar psr msp unid'.split()
-    if bcu: classes = classes + ['bcu']
-    t =pd.DataFrame([all,sel,pct])[classes]; 
-    # t.index.name='counts'
+    t =pd.DataFrame([all,sel,pct])['blazar psr msp unid bcu'.split()]; 
+    t.index.name='counts'
     show(t)
     # apply diffuse
     df3 = pd.read_csv(f'files/{dataset}_{nc}_class_classification.csv', index_col=0)
@@ -522,9 +559,6 @@ def hist_kde(self,df, ):
     return fig
 
 if 'kde' in sys.argv:
-    self, dfc = kde_setup()
-
-if 'kdedoc' in sys.argv:
     import warnings
     warnings.filterwarnings("ignore")
     self, dfc = kde_setup()
@@ -548,9 +582,6 @@ if 'kdedoc' in sys.argv:
     show_fig(self.plot_flux_shape, dfc)
 
 def plot_kde_density(self,df, s=10, **kwargs):
-    """Scatter plots showing the associated sources in the upper row, and the UnID selection in lower row.
-    Left column: Curvature $d$ vs $E_p$; Right column: Source peak flux $F_p$ vs. diffuse background flux.
-    """
 
     fig, axx = plt.subplots(ncols=2, nrows=2,  figsize=(15,12),  
                                     gridspec_kw=dict(wspace=0.3,hspace=0.05))
@@ -559,17 +590,15 @@ def plot_kde_density(self,df, s=10, **kwargs):
     kde_kw   = dict(hue_order=self.target_names, palette=self.palette,  alpha=0.4,legend=False)
     target_kw= dict(hue_order=self.target_names, palette=self.palette,)
 
-    spectral_kw = dict(data=df, x='log_epeak', y='d',  hue='subset', s=s, edgecolor='none' )
-    flux_kw = dict(data=df, y='log_fpeak', x='diffuse',  hue='subset',s=s, edgecolor='none' )
-    def fix_for_kde(kw): # so not to trigger warning
-        kw.pop('s'); kw.pop('edgecolor')
-        return kw
+    spectral_kw = dict(data=df, x='log_epeak', y='d', s=s, hue='subset', edgecolor='none' )
+    flux_kw = dict(data=df, y='log_fpeak', x='diffuse', s=s, hue='subset', edgecolor='none' )
+    
     def spectral( ax1, ax2 ):
         """Spectral shape scatter plots: curvature $d$ vs $E_p$.
         """            
         sns.scatterplot(ax=ax1, **spectral_kw, **target_kw)        
         sns.scatterplot(ax=ax2, **spectral_kw, **other_kw)
-        sns.kdeplot(    ax=ax2, **fix_for_kde(spectral_kw), **kde_kw) 
+        sns.kdeplot(    ax=ax2, **spectral_kw, **kde_kw) 
 
         for ax in (ax1,ax2):
             ax.set(**epeak_kw(), xlim=(-1,1), ylim=(0.1,2.2),
@@ -581,7 +610,7 @@ def plot_kde_density(self,df, s=10, **kwargs):
         """
         sns.scatterplot(ax=ax1, **flux_kw, **target_kw)        
         sns.scatterplot(ax=ax2, **flux_kw, **other_kw)
-        sns.kdeplot(    ax=ax2, **fix_for_kde(flux_kw), **kde_kw)
+        sns.kdeplot(    ax=ax2, **flux_kw, **kde_kw)
 
         for ax in (ax1,ax2):
             ax.set(ylim=(-2.75,4), **fpeak_kw('y'), xlim=(-1,2.5))
@@ -595,4 +624,3 @@ if 'bcu' in sys.argv:
     import warnings
     warnings.filterwarnings("ignore")
     self, dfc = kde_setup()
-
