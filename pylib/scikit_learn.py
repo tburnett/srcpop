@@ -5,6 +5,10 @@ Interface to scikit-learn, adapting a DataFrame like interface
 import numpy as np
 import pandas as pd
 
+from sklearn.model_selection import train_test_split 
+from sklearn import metrics
+
+
 def get_model(model_name):
 
     from sklearn.naive_bayes import GaussianNB 
@@ -218,3 +222,39 @@ Scikit-learn specifications:
         prdf = pd.DataFrame(data=d)
 
         sns.lineplot(data=prdf, x="recall", y="prec", hue='group')
+
+    def get_auc(self, model=None, count=10):
+
+        """
+        Evaluate ROC-AUC value for a model
+        for `count` evaluations, return tuple (value,error)   
+        """
+        class AUC:
+            """ Manage calculation of ROC AUC values
+            """
+            test_size = 0.33
+            def __init__(self, skl, model):
+                """ skl: a SKlearn object
+                    model: sklearn model
+                """
+                self.model= model
+                X,y = skl.getXy()
+                self.tts = (X, y=='pulsar')  # pars for train_test_split
+                
+            def __call__(self):        
+                X_train, X_test, y_train, y_test = train_test_split(*self.tts, test_size=self.test_size)
+                classifier = self.model.fit(X_train, y_train)
+                y_proba = classifier.predict_proba(X_test)[::,1]
+                return metrics.roc_auc_score(y_test, y_proba) 
+        
+            @classmethod
+            def evaluate(cls, skl, model_name, N=100):
+                self = cls(skl, model_name)
+                v = np.array([self() for n in range(N)])
+                return round(100* v.mean(),2), round(100* v.std()/np.sqrt(N-1),2)
+            
+        # either lookup from a model code or use the current one
+        model = get_model(model) if model is not None else self.model
+        model.probability=True #needed  for probability
+        
+        return AUC.evaluate(self, model, count)

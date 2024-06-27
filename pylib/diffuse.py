@@ -130,7 +130,7 @@ class Diffuse:
         ax1.set(**self.fluxticks('x') )
         
         sns.ecdfplot(data, ax=ax2, x=x, legend=False,  **hkw)
-        self.plot_limits( ax2, color='0.3' if dark_mode else '0.8')
+        self.plot_limits( ax2, color='0.3' if self.dark_mode else '0.8')
         ax2.set(**self.fluxticks('x') )
         return fig
     

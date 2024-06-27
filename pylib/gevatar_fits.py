@@ -1,4 +1,5 @@
-# from pylib.ipynb_docgen import show
+
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -8,54 +9,16 @@ var_labels = dict(sqrt_d = '$\sqrt{d}$',
               log_epeak = '$\log_{10}(E_p)$',
               diffuse = '$D$')
 
-def data_model(self, norms, unid, fig=None, palette=None):
 
-    if fig is None:
-        axd = plt.figure(figsize=(20,6), layout="constrained").subplot_mosaic([self.names], sharey=True)
-        # fig, axx = plt.subplots(ncols=3, figsize=(20,6), sharey=True,
-        #                        gridspec_kw=dict(wspace=0.1))
-    else:
-        # axx = fig.subplots(ncols=3, sharey=True, gridspec_kw=dict(wspace=0.1))
-        axd = fig.subplot_mosaic([self.names], sharey=True)
-    pi = self.projection_info(unid)
-    xtick_dict=dict(sqrt_d=np.arange(0,1.5,0.5), 
-                    log_epeak=np.arange(-1, 0.6, 0.5), 
-                    diffuse=np.arange(-1,2.1,1))
-    # for var_name, ax in zip(self.names, axx.flat): ]
-    for var_name in self.names:
-        ax = axd[var_name]    
-        df =pi[var_name]
-        x = df.x
-        ax.errorbar(x=x, y=df.unid, xerr=self.size[var_name]/2/self.N, 
-                    yerr=np.sqrt(df.unid), fmt='.', label='unid')
-        ax.set(xlabel=var_labels[var_name], xticks=xtick_dict[var_name],
-               ylim=(0,None))
-        var_norm = self.size[var_name]/self.N
-        total = np.zeros(self.N)    
-        
-        for cls_name, color in zip(self.class_names, palette):
-            y = norms[cls_name]*var_norm* df[cls_name]
-            total+=y
-            ax.plot(x, y,   color=color, label=cls_name)
-            
-        ax.plot(x,total, color='w' if self.dark_mode else 'k', label='sum', lw=4)
-        if var_name=='log_epeak':
-            ax.legend(loc='upper right', fontsize='small',frameon=False,
-                      ncols=2,  bbox_to_anchor=(1, 1.3))
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
 
-    axd['sqrt_d'].set( ylabel='Counts / bin',yticks=np.arange(0,151,50));
-    return fig
-
-def get_deltas(self, norms, unid):
-    pi = self.projection_info(unid)
+def get_deltas(self, norms, unID):
+    pi = self.projection_info(unID)
     deltas = dict()
     for var_name in self.names: 
     
         df = pi[var_name]
         x = df.x
-        unid = df.unid
+        unID = df.unID
     
         var_norm = self.size[var_name]/self.N
         total = np.zeros(self.N)    
@@ -63,23 +26,23 @@ def get_deltas(self, norms, unid):
         for cls_name in self.class_names:
             y = norms[cls_name]*var_norm* df[cls_name]
             total+=y
-        deltas[var_name] = total-unid    
+        deltas[var_name] = total-unID    
     return deltas
 
-def show_diffs(self, norms, unid, fig=None, palette=None):
+def show_diffs(self, norms, unID, fig=None, palette=None):
     """
     """
     if fig is None:
         fig, ax = plt.subplots(figsize=(8,6))
     else:
         ax = fig.subplot_mosaic('..AAA.')['A']
-    deltas = get_deltas(self, norms, unid)
+    deltas = get_deltas(self, norms, unID)
     for var_name, m, color in zip(self.names, 'oDv', palette):
         ax.plot(-deltas[var_name], m, ls='--' , ms=8, 
                 label=var_labels[var_name], color=color)
     ax.legend(loc='upper left', bbox_to_anchor=(1., 1),fontsize='small')
     ax.axhline(0, color='0.5')
-    ax.set(xlabel='bin number', ylabel='Unid data - model');
+    ax.set(xlabel='bin number', ylabel='unID data - model');
     return fig
 
 def slice_loglike(self, x, norms, cls_name, *, var_name, idx,):  
@@ -91,9 +54,9 @@ def slice_loglike(self, x, norms, cls_name, *, var_name, idx,):
     """
     n = norms.copy()
     n[cls_name] = x
-    pi = self.projection_info(unid)
+    pi = self.projection_info(unID)
     df = pi[var_name]
-    N = df.unid[idx].sum() 
+    N = df.unID[idx].sum() 
     
     var_norm = self.size[var_name]/self.N
     
@@ -104,11 +67,11 @@ def slice_loglike(self, x, norms, cls_name, *, var_name, idx,):
     mu = model[idx].sum()#.round(3) 
     return N * np.log(mu) - mu
 
-def fit_plots(self, norms, unid, palette):
+def fit_plots(self, norms, unID, palette):
     fig = plt.figure(layout='constrained', figsize=(12, 8))
     subfig1, subfig2= fig.subfigures(nrows=2,  hspace=0.1, height_ratios=(3,2))
-    data_model(self,  norms, unid, subfig1, palette)
-    show_diffs(self,  norms, unid, subfig2, palette)
+    data_model(self,  norms, unID, subfig1, palette)
+    show_diffs(self,  norms, unID, subfig2, palette)
     fig.text(0.2, 0.4, 'Model contents\n'+'\n'.join(str(pd.Series(norms)).split('\n')[:-1]),
              ha='right',va='top')
     return fig;
@@ -116,13 +79,13 @@ def fit_plots(self, norms, unid, palette):
 
 class Fitter:
     
-    def __init__(self, fs, unid,  fit_slice): 
+    def __init__(self, fs, unID,  fit_slice): 
         """fs: FeatureSpace object
         """
         self.fs = fs
-        self.unid = unid
+        self.unID = unID
         self.fit_slice=fit_slice
-        self.proj_info = fs.projection_info(unid)
+        self.proj_info = fs.projection_info(unID)
 
     def fit_function(self,norms):
         """Return a dict with the three slice likelihood functions
@@ -140,7 +103,7 @@ class Fitter:
             fs = self.fs
             df = self.proj_info[var_name]
 
-            N = df.unid[idx].sum() 
+            N = df.unID[idx].sum() 
             
             var_norm = fs.size[var_name]/fs.N
             
@@ -151,33 +114,14 @@ class Fitter:
             mu = model[idx].sum()#.round(3) 
             return N * np.log(mu) - mu
  
-        return dict(
+        dct =  dict(
             blazar= lambda x: slice_loglike(x, 'blazar', **self.fit_slice['blazar']),
             psr   = lambda x: slice_loglike(x, 'psr',    **self.fit_slice['psr']),
             msp  =  lambda x: slice_loglike(x, 'msp',    **self.fit_slice['msp']),
             )
-
-    def new_fit(self, norms):
-        import copy
-        fit_info = copy.deepcopy(self.fit_slice)
-
-        f = self.fit_function(norms)
-        for cls_name in self.fit_slice.keys(): #, ax in axd.items():
-            
-            opt = optimize.minimize(
-                lambda x: -np.array([f[cls_name](x)]), 
-                x0=norms[cls_name], 
-                )            
-            fit_info[cls_name]['fit'] = round(opt.x[0])
-            fit_info[cls_name]['sigma'] = round(np.sqrt(opt.hess_inv).diagonal()[0])
-            
-        fits = pd.DataFrame(fit_info).T
-        def get_range(r):
-            t = self.fs.bins[r.var_name][r.idx]
-            return (t[0], t[-1])
-        fits['range']= fits.apply(get_range, axis=1) 
-        fits.index.name='class name'
-        return fits       
+        return dct
+        # f = fitter.fit_function(xnorm)
+        # return  -np.sum([f[n]( xnorm[n] ) for n in self.classes])  
         
        
     def fit_3d(self, norms):
@@ -219,4 +163,47 @@ class Fitter:
                 return pd.DataFrame([fitval, fitunc])
             
         return F3( norms)
+    
+    def plot_fit_range(self, fig, palette, dark_mode=True):#, fit_slice):
+        """Add shaded areas to plots showing fits.
+        """
+        fit_slice = self.fit_slice
+        fs = self.fs
+        
+        fs_df = pd.DataFrame(fit_slice).T
+        fs_df.index.name='cls'
+        fs_df['cls']=fs_df.index
+        fs_df = fs_df.set_index('var_name')
+        # show(fs_df)
+        for ax in fig.axes:
+            var_name = ax.get_label()
+            fsi = fs_df.loc[var_name]
+            t =  fs.bins[var_name][fsi.idx]
+            cls = fsi.cls
+            cidx = list(fs.class_names).index(cls)
+            ax.axvspan(t[0], t[-1], alpha=0.3 if dark_mode else 0.1, color=palette[cidx])
+
+    @classmethod
+    def main(cls, fs, unID, norms=dict(psr=520, msp=150, blazar=823)):
+        fit_slice = dict(
+            blazar = dict(var_name ='sqrt_d',  idx=slice(0,7,1),),
+            psr   = dict(var_name ='diffuse',  idx=slice(19,-1,1)),
+            msp = dict(var_name ='log_epeak',  idx=slice(11,15,1)),
+            ) 
+        fs_df = pd.DataFrame(fit_slice).T; fs_df.index.name='cls'
+        myf   = cls(fs, unID, fit_slice)
+        f3    = myf.fit_3d( norms = norms  )
+        fit_df = f3.maximize()
+
+        opt = myf.opt
+        if not opt.success:
+            print(f'Warning: fit failure {opt.message}', file=sys.stderr)
+        cov = opt.hess_inv
+        sigs = np.sqrt(cov.diagonal())
+        corr = cov / np.outer(sigs,sigs)
+
+        return dict(fit_df=fit_df,  opt=opt,
+                    cov=cov,
+                    sigs=sigs, corr=corr,
+                    fitter=myf)
     

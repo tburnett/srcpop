@@ -7,17 +7,20 @@ import seaborn as sns
 
 def set_theme(argv):
     plt.rcParams['figure.figsize']=[5,3]
-    sns.set_theme('notebook' if 'talk' not in argv else 'talk', font_scale=1.25) 
-    if 'paper' in argv: sns.set_theme('paper')
+    # sns.set_theme('notebook' if 'talk' not in argv else 'talk', font_scale=1.25) 
+    sns.set_theme( 'talk', font_scale=1.) 
+    if 'paper' in argv: 
+        # sns.set_theme('paper')
+        sns.set_style('ticks')
     if 'dark' in argv:
-        # sns.set_style('darkgrid')
-        plt.style.use('dark_background') #s
+        sns.set_style('darkgrid') ##?
+        plt.style.use('dark_background')
         plt.rcParams['grid.color']='0.5'
-        plt.rcParams['figure.facecolor']='k'
+        # plt.rcParams['figure.facecolor']='k'
         dark_mode=True
     else:
         dark_mode=False
-        sns.set_style('whitegrid')
+        sns.set_style('ticks' if 'paper' in argv else 'whitegrid')
         plt.rcParams['figure.facecolor']='white'
     return dark_mode
 
@@ -28,7 +31,7 @@ def fpeak_kw(axis='x'):
             axis+'lim': (-2,5 ),
             }
 def diffuse_kw(axis='x'):
-    return {axis+'label':r'Diffuse energy flux $\mathrm{ (eV\ cm^{-2}\ s^{-1})}$',
+    return {axis+'label':r'Diffuse energy flux $\mathrm{ (eV\ cm^{-2}\ s^{-1}\ deg^{-2})} $',
             axis+'lim': (-1,2.2),
             axis+'ticks': np.arange(-1,2.1,1),
             axis+'ticklabels': '0.1 1 10 100'.split(),

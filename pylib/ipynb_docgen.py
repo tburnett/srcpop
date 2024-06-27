@@ -802,14 +802,19 @@ def show(obj, vars={}, **kwargs):
     # pass the doc, a callable or a text string to the formatter
     display.display(doc_formatter(doc, vars, mimetype=mimetype))
 
-def show_fig(fn, *pars, fignum=None, caption=None, format_kw:dict=None,
-             facecolor=None, **kwargs): 
+def show_fig(fn, *pars, fignum=None, caption=None, 
+             format_kw:dict=None,
+             facecolor:str=None, 
+             save_to:str=None, 
+             **kwargs): 
     """
     Equivalent to :
     show(fn(pars, **kwargs), fignum=fignum, caption=fn.__doc__)
 
     But with the possibility of run-time modification of the doc string via a format call,
     with the dict items in format_kw.
+    * facecolor
+    * save_to: fig.savefig(save_to, facecolor='w',  bbox_inches='tight')
     """
     assert callable(fn), 'Expect fn to be a callable'
     fig = fn(*pars, **kwargs);    
@@ -818,3 +823,5 @@ def show_fig(fn, *pars, fignum=None, caption=None, format_kw:dict=None,
     if format_kw is not None:
         cpn = cpn.format(**format_kw)
     show( fig, fignum=fignum,  caption=cpn, facecolor=facecolor)
+    if save_to is not None:
+        fig.savefig(save_to, facecolor='w',  bbox_inches='tight')
