@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 
 from pylib.catalogs import Fermi4FGL
-from pylib.tools import epeak_kw, fpeak_kw, set_theme, diffuse_kw, var_kw
+from pylib.tools import epeak_kw, fpeak_kw, set_theme, diffuse_kw, var_kw, show_date
 from pylib.scikit_learn import SKlearn, get_model
 from pylib.ipynb_docgen import show, show_fig, capture_show, capture_hide
 
@@ -156,8 +156,8 @@ class MLfit(SKlearn):
             gtbl = dict (
                 pulsar = 'msp psr'.split(),
                 blazar = 'fsrq bll'.split(),
-                galaxy = 'agn gal sey nlsy1 sbg ssrq css rdg'.split(),
-                Galactic='gc bin glc hmb lmb nov pwn sfr snr spp'.split(),
+                egal = 'agn gal sey nlsy1 sbg ssrq css rdg'.split(),
+                Gal ='gc bin glc hmb lmb nov pwn sfr snr spp'.split(),
                 unID   = ['', 'unk', 'bcu'],
                 )
             inv = dict()
@@ -171,7 +171,7 @@ class MLfit(SKlearn):
         def simple_pivot(df, x='prediction', y= 'class_group'):        
             ret =df.groupby([x,y]).size().reset_index().pivot(
                 columns=x, index=y, values=0)
-            return ret.reindex(index='blazar pulsar galaxy Galactic unID'.split())
+            return ret.reindex(index='blazar pulsar egal Gal unID'.split())
         return simple_pivot(df).fillna(0).astype(int) # NaN are zero
     
     def plot_prediction_association(self, table, ax=None):
@@ -227,7 +227,7 @@ class MLfit(SKlearn):
         # probs= self.predict_prob(query=None)
         # df = pd.concat([self.df, probs], axis=1)
 
-        non_trainers = ['unID'] #, 'bcu'] 
+        non_trainers = ['unID']
         titles = list(self.trainer_names) + non_trainers
         fig, axx = plt.subplots(nrows=len(titles), figsize=(8,8),sharex=True, sharey=True,
                                     gridspec_kw=dict(hspace=0.1))
@@ -281,7 +281,7 @@ class MLfit(SKlearn):
     
     def write_summary(self, overwrite=False):
 
-        summary_file=f'files/{dataset}_{len(self.trainer_names)}_class_classification.csv'  
+        summary_file=f'files/{dataset}_{len(self.trainer_names)}_class_{len(self.features)}_features.csv'  
 
         if Path(summary_file).is_file() and not overwrite:
             print(f'File `{summary_file}` exists--not overwriting.')
@@ -304,17 +304,18 @@ class MLfit(SKlearn):
             
         df = self.df.copy()
 
-        # # add the three predicted probabilities
-        # df = pd.concat([df,self.predict_prob(query=None)], axis=1)
-        
         # set source_type for pulsars and pulsar-predictions
         df['source_type'] = df.apply(set_source_type, axis=1)
-        # df = df[df.source_type.notna()]            
+         
 
         # add a diffuse column
-        df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
+        try:
+            df['diffuse'] = get_diffuse(df) #self.get_diffuses(df)
+        except Exception as mst:
+            print("Fail diffuse"+msg, file=sys.stderr)
+            df['diffuse']= np.nan
 
-        cols= """source_type glat glon significance class1 association flags r95 trainer
+        cols= """source_type glat glon variability significance class1 association flags r95 trainer
             Ep Fp d diffuse p_pulsar""".split()
         df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
         print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
@@ -395,7 +396,7 @@ class MLfit(SKlearn):
         # probs= self.predict_prob(query=None)
         # df = pd.concat([self.df, probs], axis=1)
 
-        non_trainers = ['unID'] #, 'bcu'] 
+        non_trainers = ['unID'] 
         titles = list(self.trainer_names) + non_trainers
         fig, axx = plt.subplots(nrows=len(titles), figsize=(8,8),sharex=True, sharey=True,
                                     gridspec_kw=dict(hspace=0.15))
@@ -635,6 +636,8 @@ title = sys.argv[-1] if 'title' in sys.argv else None
 
 def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
     from pylib.tools import FigNum, show_date
+    import os
+    os.mkdirs('figures', exist_ok=True )
 
     def trainers():
         if np==1: 
@@ -645,10 +648,15 @@ def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
             dict(bll=('bll',), fsrq=('fsrq',))
         return dict(**a,**b)
     
+    def feature_list(nf):
+        if nf==4: return ('log_var', 'log_fpeak', 'log_epeak', 'sqrt_d')
+        if nf==3: return ('log_var',  'log_epeak', 'sqrt_d')
+        if nf==2: return  ('log_epeak', 'sqrt_d')
+                          
+
     skprop = dict(
-        features= ('log_var', 'log_fpeak', 'log_epeak', 'sqrt_d') if nf==4 else \
-                  ('log_var', 'log_epeak', 'sqrt_d'),
-        clips = [(None,None), (None,None),(-1,3), (-0.1,2) ],
+        features= feature_list(nf),
+        # clips = [(None,None), (None,None),(-1,3), (-0.1,2) ],
         trainers = trainers(),
         model_name = model, #'SVC',
         truth_field='association',
@@ -663,7 +671,7 @@ def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
         for the ML trainers, which we then apply to the unID and bcu associations.
         """)
     else:
-        show(f"""# ML {nc}-class Classification with {model} Model""")
+        show(f"""# Supervised Model {model} Classification with {nc} classes and {nf} features""")
 
     with capture_show('Setup:') as imp:
         self = Doc(skprop)
@@ -734,7 +742,20 @@ def add_classification_prob(df, filename='files/dr4_2_class_classification.csv')
     """
     q = pd.read_csv(filename, index_col=0)
     df['p_pulsar'] = q.p_pulsar
-
+    
+def apply_kde(self, df=None, features=None):
+    from pylib.kde import Gaussian_kde
+    if df is None: df = self.df.copy() 
+    if features is None: features=self.features
+    for name, sdf in df.groupby('subset'):
+        try:
+            gde = Gaussian_kde(sdf,  features)
+        except Exception as msg:
+            print(msg, file=sys.stderr)
+        u = gde(df)
+        df[name+'_kde'] = u
+    return df
+    
 def kde_setup(kde_vars = 'sqrt_d log_epeak diffuse'.split(), nc=2,# bcu=False,
            cut = '0.15<Ep<4 & variability<25' , include_bcu=True  ):
     self = doc(nc=nc, np=1, kde=True,)# bcu=bcu)
@@ -757,8 +778,8 @@ def kde_setup(kde_vars = 'sqrt_d log_epeak diffuse'.split(), nc=2,# bcu=False,
         gtbl = dict (
             pulsar = 'msp psr'.split(),
             blazar = 'fsrq bll'.split(),
-            galaxy = 'agn gal sey nlsy1 sbg ssrq css rdg'.split(),
-            Galactic='gc bin glc hmb lmb nov pwn sfr snr spp'.split(),
+            egal  = 'agn gal sey nlsy1 sbg ssrq css rdg'.split(),
+            Gal ='gc bin glc hmb lmb nov pwn sfr snr spp'.split(),
             unID   = ['', 'unk', 'bcu'],
             )
         inv = dict()
@@ -775,7 +796,7 @@ def kde_setup(kde_vars = 'sqrt_d log_epeak diffuse'.split(), nc=2,# bcu=False,
     all = pd.Series(self.df.groupby('association_class').size(), name='total')
     sel = pd.Series(dfc.groupby('association_class').size(), name='selected')
     pct = pd.Series((100*sel/all).round(0).astype(int), name='%')
-    classes = 'blazar pulsar galaxy Galactic unID'.split()
+    classes = 'blazar pulsar Gal egal unID'.split()
     t =pd.DataFrame([all,sel,pct])[classes]; 
     # t.index.name='counts'
     show(t)    
@@ -796,6 +817,4 @@ def kde_setup(kde_vars = 'sqrt_d log_epeak diffuse'.split(), nc=2,# bcu=False,
     self.df.to_csv((filename:='files/kde_data.csv'))
     show(f'saved KDE setup to `{filename}`')
     return self, dfc
-
-
 

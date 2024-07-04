@@ -6,12 +6,15 @@ import pandas as pd
 import seaborn as sns
 
 def set_theme(argv):
+    # start with default
+    # plt.rcParams.update(plt.rcParamsDefault)
     plt.rcParams['figure.figsize']=[5,3]
     # sns.set_theme('notebook' if 'talk' not in argv else 'talk', font_scale=1.25) 
     sns.set_theme( 'talk', font_scale=1.) 
     if 'paper' in argv: 
         # sns.set_theme('paper')
         sns.set_style('ticks')
+        dark_mode = False
     if 'dark' in argv:
         sns.set_style('darkgrid') ##?
         plt.style.use('dark_background')
@@ -28,7 +31,7 @@ def fpeak_kw(axis='x'):
     return {axis+'label':r'Peak flux $F_p\ \ \mathrm{ (eV\ cm^{-2}\ s^{-1})}$', 
             axis+'ticks': np.arange(-2,4.9,2),
             axis+'ticklabels': '$10^{-2}$ 1 100 $10^4$'.split(),
-            axis+'lim': (-2,5 ),
+            axis+'lim': (-3,4 ),
             }
 def diffuse_kw(axis='x'):
     return {axis+'label':r'Diffuse energy flux $\mathrm{ (eV\ cm^{-2}\ s^{-1}\ deg^{-2})} $',
@@ -36,8 +39,8 @@ def diffuse_kw(axis='x'):
             axis+'ticks': np.arange(-1,2.1,1),
             axis+'ticklabels': '0.1 1 10 100'.split(),
            }
-def epeak_kw(axis='x', show_100=False):
-    return {axis+'label':'$E_p$  (GeV)',
+def epeak_kw(axis='x', show_100=False, no_label=False):
+    return {axis+'label': ' ' if no_label else '$E_p$  (GeV)',
             axis+'ticks': np.arange(-1,1.1 if not show_100 else 2.1,1),
             axis+'ticklabels':('0.1 1 10 ' if not show_100 else '0.1 1 10 100').split(),
             }
