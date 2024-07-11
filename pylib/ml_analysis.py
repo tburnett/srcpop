@@ -11,6 +11,7 @@ from pylib.tools import epeak_kw, fpeak_kw, set_theme, show_date #, diffuse_kw, 
 from pylib.ipynb_docgen import show, show_fig, capture_show, capture_hide
 
 dark_mode = set_theme(sys.argv)
+palette =(['cyan', 'magenta', 'yellow'] if dark_mode else 'green red blue'.split())
 title = sys.argv[-1] if 'title' in sys.argv else None
 
 def gbar(ax, orientation='vertical', label='Galacticity $G$',
@@ -42,6 +43,7 @@ def pulsar_kw(axis='y'):
             axis+'lim': (-0.02, 1.02), 
             axis+'ticks': np.arange(0,1.1, 0.2),
             }
+
 
 
 class FileAnalysis:
@@ -98,7 +100,31 @@ class FileAnalysis:
                     ax.set(yticks=[], ylabel='')
         return fig
 
-        
+    def d_vs_ep(self, unid_cut='0.15<p_pulsar<0.85', hue='p_pulsar',hue_norm=None):
+        fig, axd = plt.subplot_mosaic(
+                    'AAUU;.CC.',   height_ratios=[20,1],
+                    gridspec_kw=dict(hspace=0.2),
+                    figsize=(15,8), sharey=False, layout='constrained')
+        if hue_norm is None:
+            hue_norm = (0,1) if hue=='p_pulsar' else (-0.5,1.5)
+        scat_kw=dict( y='d', x='log_epeak', s=60, edgecolor='none', legend=False,
+                            hue=hue, hue_norm=hue_norm, 
+                    palette=sns.color_palette('coolwarm', as_cmap=True))
+        for key, ax in axd.items():
+            if key=='U':
+                unid = self.unid.query(unid_cut) if unid_cut else self.unid
+                sns.scatterplot(unid, ax=ax, **scat_kw)
+                ax.set(**epeak_kw('x'), **d_kw('y'), 
+                       title=f'unID' + (f'({unid_cut})' if unid_cut else ''), )        
+            elif key=='A':
+                sns.scatterplot( self.assoc, ax=ax, **scat_kw, style='subset' )
+                ax.set(**epeak_kw('x'), **d_kw('y'), title='Associated')
+            else:
+                gbar(ax, orientation='horizontal',
+                    label='$P_{pulsar}$' if hue=='p_pulsar' else 'Galacticity',
+                    norm=hue_norm,  ticks=hue_norm)
+        return fig    
+ 
     # def multiple_pulsar_vs_ep(self, data=None, palette='coolwarm'):
     #     """Scatter plots of the ML pulsar probability $P_{pulsar}$ vs $Ep$ for the data subsets
     #     shown. 

@@ -141,12 +141,14 @@ Scikit-learn specifications:
 
         self.df['prediction'] = self.predict()
 
-    def predict_prob(self, query=None):
+    def predict_prob(self, *, df=None, query=None):
         """Return DF with fit probabilities
         """
         mdl = self.classifier
         assert mdl.probability, 'Fit must be with probability  True' 
-        dfq = self.df.query(query) if query is not None else self.df
+        if df is not None:
+            dfq = self.df.query(query) if query is not None else self.df
+        else: dfq=self.df
         X = dfq.loc[:, self.features]
         return pd.DataFrame(mdl.predict_proba(X), index=dfq.index,
                             columns=['p_'+ n for n in self.trainer_names])

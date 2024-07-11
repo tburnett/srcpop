@@ -9,7 +9,7 @@ import seaborn as sns
 from pylib.skymaps import HPmap
 from pylib.tools import  update_legend, set_theme
 
-# dark_mode = set_theme(sys.argv)
+dark_mode = set_theme(sys.argv)
 
 class Diffuse:
     
@@ -155,3 +155,15 @@ class Diffuse:
         sns.histplot(data, x=x, ax=g.ax_marg_x, **hkw)
         update_legend(ax, data, hue=hue_kw['hue'],  fontsize=12,   loc='lower left')
         return g.fig     
+
+
+def save_dr4(filename='files/dr4_galacticity.csv'):
+    from pylib.catalogs import Fermi4FGL
+    from astropy.coordinates import SkyCoord
+    diff = Diffuse()
+
+    df = Fermi4FGL()
+    sdirs = SkyCoord(df.glon, df.glat, unit='deg', frame='galactic')
+    G = diff.get_values_at(sdirs)
+    GS = pd.Series(G, index=df.index, name='G').astype(np.float32)
+    GS.to_csv(filename)

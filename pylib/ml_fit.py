@@ -10,31 +10,25 @@ from pylib.catalogs import Fermi4FGL
 from pylib.tools import epeak_kw, fpeak_kw, set_theme, diffuse_kw, var_kw, show_date
 from pylib.scikit_learn import SKlearn, get_model
 from pylib.ipynb_docgen import show, show_fig, capture_show, capture_hide
-
-
-
 from sklearn import metrics
 
-
-
 dark_mode = set_theme(sys.argv)
-
-
-
 dataset='dr3' if 'dr3' in sys.argv else 'dr4'
 
 def lp_pars(fgl):
     """ extract LP spectral functions from 4FGL catalog object get its parameters
-    Return DataFrame with EP,FP,d,d_unc
+    Return DataFrame with Ep,Fp,d,d_unc, Ep_unc
     """
 
     df = pd.DataFrame(index=fgl.index)
     df['lp_spec'] = [fgl.get_specfunc(name, 'LP') for name in df.index]
     sed = df['lp_spec']
-    df['Ep'] = 10**sed.apply(lambda f: f.epeak)
+    df['Ep'] = 10**sed.apply(lambda f: f.epeak) # should be same as catalog
     df['Fp'] = 10**sed.apply(lambda f: f.fpeak)
     df['d'] = sed.apply(lambda f: f.curvature()).clip(-0.1,2)
+    # get uncertainties from the catalog, converting to curvature and energy in GeV
     df['d_unc'] = 2*fgl.field('unc_LP_beta')
+    df['Ep_unc'] = 1e-3 * fgl.field('unc_LP_EPeak').astype(np.float32)
     return df.drop(columns=['lp_spec'])
 
 #  create association with lower-case class1, combine 'unk','bcu', and '' to 'unID'
@@ -93,7 +87,7 @@ class MLfit(SKlearn):
             df['hasdr3'] =np.isin(df.index, dr3.index)
             common = df[df.hasdr3].index
             print(f'Apply DR3 LP values for all but {sum(~df.hasdr3)} sources.')
-            lpcols='Ep Fp d d_unc'.split()
+            lpcols='Ep Fp d d_unc Ep_unc'.split()
             df.loc[common,lpcols]=  lp3.loc[common,lpcols]
 
         # add sqrt_d
@@ -296,6 +290,9 @@ class MLfit(SKlearn):
                 s.association+'-'+s.prediction
 
         def get_diffuse(df):
+            if Path(filename:='files/dr4_glasticity.csv').exists():
+                return pd.read_csv(filename)
+            
             from astropy.coordinates import SkyCoord
             from pylib.diffuse import Diffuse
             diff = Diffuse()
@@ -316,7 +313,7 @@ class MLfit(SKlearn):
             df['diffuse']= np.nan
 
         cols= """source_type glat glon variability significance class1 association flags r95 trainer
-            Ep Fp d diffuse p_pulsar""".split()
+            Ep Fp d diffuse Ep_unc d_unc p_pulsar""".split()
         df.loc[:, cols].to_csv(summary_file, float_format='%.3f') 
         print(f'Wrote {len(df)}-record summary, using model {self.model}, to `{summary_file}` \n  columns: {cols}')
 
@@ -634,10 +631,10 @@ class Doc(MLfit):
         
 title = sys.argv[-1] if 'title' in sys.argv else None
 
-def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
+def doc(nc=2, np=2, nf=4, kde=False,  model='RFC' ):
     from pylib.tools import FigNum, show_date
     import os
-    os.mkdirs('figures', exist_ok=True )
+    os.makedirs('figures', exist_ok=True )
 
     def trainers():
         if np==1: 
@@ -663,6 +660,12 @@ def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
         # will be set to a trainers key
         trainer_field = 'trainer',
         )
+    def saveto(filename):
+        """ return dict for saving png if not dark"""
+        if dark_mode: return {}
+        return dict(save_to='figures/'+filename) 
+
+
     fn = FigNum(n=1, dn=0.1)
     if kde:
         show(f"""# KDE approach  ({dataset.upper()})""" if title is None else '# '+title)
@@ -681,10 +684,10 @@ def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
     
     show(str(self))
     show(f"""## Feature distributions """)
-    show_fig(self.pairplot, fignum=fn.next, save_to='figures/features.png')
+    show_fig(self.pairplot, fignum=fn.next, **saveto('features.png'))
 
     show( "Expand the important pairs")
-    show_fig(self.feature_correlations, fignum=fn.next, save_to='figures/feature_correlations.png')
+    show_fig(self.feature_correlations, fignum=fn.next, **saveto('feature_correlations.png'))
     show(f"""## Train then apply prediction, add probs """)
     self.train_predict()
     probs= self.predict_prob(query=None)
@@ -710,7 +713,7 @@ def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
     show(f"""### All predictions""")
     table = self.prediction_association_table()
     show(table)
-    show_fig(self.plot_prediction_association,table, fignum=fn.next, save_to='figures/prediction_bar.png')
+    show_fig(self.plot_prediction_association,table, fignum=fn.next, **saveto('prediction_bar.png'))
 
     show(f"""## The issue with this
          In figure {fn.next}, we show plots of the pulsar probability vs.  $E_p$ for the training classes, in 
@@ -719,8 +722,8 @@ def doc(nc=2, np=2, nf=4, kde=False, bcu=False, model='RFC' ):
          The large number of unID sources with intermediate probabilites is inconsistent with
           a mixture of the two classes. 
          """)
-    # show_fig(self.pulsar_prob_hists, fignum=fn.current, save_to='figures/pulsar_prob_hists.png')
-    show_fig(self.psrprob_vs_ep, fignum=fn.current, save_to='figures/pulsar_prob_vs_ep.png')
+    
+    show_fig(self.psrprob_vs_ep, fignum=fn.current, **saveto('pulsar_prob_vs_ep.png'))
 
     # show(f"""#### Write summary file, adding diffuse correlation""")
     self.write_summary()
